@@ -1,0 +1,85 @@
+{
+  "common": {
+    "appName": "Mandi Live",
+    "tagline": "India's Video-First Marketplace",
+    "searchPlaceholder": "Search cars, mobiles, jobs, electronics...",
+    "retry": "Try Again",
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "viewAll": "View All",
+    "verified": "Verified",
+    "back": "Back",
+    "close": "Close"
+  },
+  "nav": {
+    "home": "Home",
+    "reels": "Reels",
+    "create": "Sell",
+    "chats": "Chats",
+    "account": "Account"
+  },
+  "auth": {
+    "loginTitle": "Welcome to Mandi Live",
+    "loginSubtitle": "Enter your 10-digit mobile number to continue",
+    "phoneNumberLabel": "Phone Number",
+    "phonePlaceholder": "Enter 10-digit number",
+    "sendOtp": "Send OTP",
+    "verifyOtpTitle": "Verify Phone Number",
+    "verifyOtpSubtitle": "Enter the 6-digit OTP sent to {{phone}}",
+    "verifyButton": "Verify & Continue",
+    "resendOtp": "Resend OTP",
+    "phase0Notice": "Authentication is in Phase 0 preview. Real SMS OTP is enabled in Phase 1."
+  },
+  "home": {
+    "greeting": "Explore Marketplace",
+    "featuredReels": "Trending Video Reels",
+    "freshRecommendations": "Fresh Recommendations",
+    "categories": "Top Categories",
+    "locationSelector": "Select Location",
+    "allIndia": "All India"
+  },
+  "reels": {
+    "title": "Video Feed",
+    "price": "Price",
+    "chatWithSeller": "Chat with Seller",
+    "makeOffer": "Make Offer",
+    "viewListing": "View Details",
+    "noReels": "No video reels found in your selected area yet."
+  },
+  "create": {
+    "title": "What would you like to post?",
+    "postListingTitle": "Post a Regular Listing",
+    "postListingDesc": "Add photos, price, description and location",
+    "postReelTitle": "Post a Video Reel",
+    "postReelDesc": "Record or upload up to 60s product showcase video",
+    "phase0Notice": "Listing and Reel uploads will be connected to the media pipeline in Phase 1."
+  },
+  "chats": {
+    "title": "Messages",
+    "emptyTitle": "No chats yet",
+    "emptyDesc": "When you contact sellers or buyers message you, your conversations will appear here.",
+    "startExploring": "Explore Listings"
+  },
+  "account": {
+    "title": "My Account",
+    "notLoggedIn": "Guest User",
+    "loginCta": "Login / Register",
+    "language": "App Language",
+    "currentLanguage": "English",
+    "settings": "Settings",
+    "help": "Help & Support",
+    "phase0Badge": "Phase 0 Foundation"
+  },
+  "placeholder": {
+    "notImplementedTitle": "Coming in Phase 1",
+    "notImplementedDesc": "This screen is part of the planned marketplace architecture and will be functional when backend services connect in Phase 1.",
+    "backHome": "Back to Home"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "network": "Unable to connect to the server. Please check your internet connection.",
+    "notFound": "Page not found."
+  }
+}

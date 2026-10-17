@@ -1,56 +1,69 @@
-# Welcome to your Expo app 👋
+# Mandi Live — Mobile Client
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+> Video-First Free Marketplace for India (Classifieds, Reels, Profiles, Chat & Location Discovery)
 
-## Get started
+Built with **Expo SDK 57**, **React Native 0.86**, **React 19**, **TypeScript**, and **Expo Router**.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 🚀 Quick Start
 
-2. Start the app
+### 1. Prerequisites
+- Node.js (v18+)
+- npm / npx
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 2. Install Dependencies
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 3. Environment Setup
+```bash
+cp .env.example .env
+```
+> **Security Reminder:** Variables with `EXPO_PUBLIC_*` are bundled into client code. Never store private keys or secrets here.
 
-### Other setup steps
+### 4. Run Development Server
+```bash
+npm run start
+```
+- Press `a` for Android Emulator
+- Press `i` for iOS Simulator
+- Press `w` for Web Browser
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+---
 
-## Learn more
+## 🛠️ Verification & Quality Checks
 
-To learn more about developing your project with Expo, look at the following resources:
+Run all quality checks before committing:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+# 1. Diagnose Expo SDK & dependencies
+npx expo-doctor
 
-## Join the community
+# 2. Strict TypeScript typecheck
+npm run typecheck
 
-Join our community of developers creating universal apps.
+# 3. Code linting
+npm run lint
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+# 4. Jest unit tests
+npm run test
+```
+
+---
+
+## 📁 Architecture Overview
+
+- `src/app/`: Expo Router file-based route definitions (`(tabs)`, `(auth)`, `listing/`, `reel/`, `chat/`, etc.)
+- `src/components/ui/`: Reusable UI design system primitives (`AppButton`, `AppInput`, `Card`, `Badge`, `EmptyState`, etc.)
+- `src/config/`: Runtime environment configuration with Zod validation (`env.ts`)
+- `src/constants/`: Semantic design tokens (`tokens.ts`, `theme.ts`)
+- `src/i18n/`: Multilingual localization for English (`en`), Hindi (`hi`), and Marathi (`mr`)
+- `src/services/`: Typed API client (`api-client.ts`) and honest service integration boundaries (`auth.service.ts`, `media.service.ts`, `socket.service.ts`)
+- `src/stores/`: Zustand state management (`useAppStore.ts`, `useAuthStore.ts`)
+- `src/types/`: Shared TypeScript data schemas (`listing.ts`, `reel.ts`, `user.ts`, etc.)
+- `src/utils/`: Safe diagnostics logging (`logger.ts`) and Indian currency/date formatters (`formatters.ts`)
+- `tests/`: Automated unit tests covering env validation, logger sanitization, formatters, i18n, and service boundaries.
+
+Detailed documentation is available in [docs/mobile-phase-0.md](docs/mobile-phase-0.md).
