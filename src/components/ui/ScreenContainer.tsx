@@ -6,8 +6,9 @@ import {
   ViewStyle,
   StatusBar,
   ScrollViewProps,
+  Platform,
 } from 'react-native';
-import { SafeAreaView, Edge } from 'react-native-safe-area-context';
+import { SafeAreaView, Edge, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, spacing } from '../../constants/tokens';
 
 export interface ScreenContainerProps {
@@ -17,7 +18,10 @@ export interface ScreenContainerProps {
   contentContainerStyle?: ViewStyle;
   edges?: Edge[];
   backgroundColor?: string;
+  statusBarStyle?: 'dark-content' | 'light-content';
+  statusBarTranslucent?: boolean;
   scrollViewProps?: ScrollViewProps;
+  hasBottomTab?: boolean;
 }
 
 export const ScreenContainer: React.FC<ScreenContainerProps> = ({
@@ -25,24 +29,43 @@ export const ScreenContainer: React.FC<ScreenContainerProps> = ({
   scrollable = false,
   style,
   contentContainerStyle,
-  edges = ['top', 'left', 'right'],
+  edges,
   backgroundColor = palette.slate50,
+  statusBarStyle = 'dark-content',
+  statusBarTranslucent = false,
   scrollViewProps,
+  hasBottomTab = false,
 }) => {
+  const insets = useSafeAreaInsets();
+
+  // If inside bottom tabs, don't double inset the bottom.
+  // If standalone screen without bottom tabs, ensure bottom safe area is respected for gesture bar & 3-button bar.
+  const resolvedEdges: Edge[] = edges ?? (hasBottomTab ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']);
+
   return (
     <SafeAreaView
-      edges={edges}
-      style={[styles.container, { backgroundColor }, style]}
+      edges={resolvedEdges}
+      style={[
+        styles.container,
+        { backgroundColor },
+        statusBarTranslucent && Platform.OS === 'android' ? { paddingTop: insets.top } : null,
+        style,
+      ]}
     >
       <StatusBar
-        barStyle="dark-content"
-        backgroundColor={backgroundColor}
+        barStyle={statusBarStyle}
+        backgroundColor={statusBarTranslucent ? 'transparent' : backgroundColor}
+        translucent={statusBarTranslucent}
       />
       {scrollable ? (
         <ScrollView
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            hasBottomTab ? { paddingBottom: spacing.xl } : null,
+            contentContainerStyle,
+          ]}
           {...scrollViewProps}
         >
           {children}

@@ -1,11 +1,17 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette } from '../../constants/tokens';
 import { TabIcon } from '../../components/ui/TabIcon';
 
 export default function TabLayout() {
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+
+  // Dynamic bottom inset ensuring safe clearance over Android 3-button bar, gesture pill, and iOS home bar
+  const bottomInset = insets.bottom > 0 ? insets.bottom : 8;
+  const tabHeight = 56 + bottomInset;
 
   return (
     <Tabs
@@ -17,8 +23,8 @@ export default function TabLayout() {
           backgroundColor: palette.pureWhite,
           borderTopColor: palette.slate200,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: tabHeight,
+          paddingBottom: bottomInset,
           paddingTop: 6,
         },
         tabBarLabelStyle: {
@@ -36,6 +42,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="reels"
         options={{
@@ -45,6 +52,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="create"
         options={{
@@ -54,6 +62,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="chats"
         options={{
@@ -63,6 +72,7 @@ export default function TabLayout() {
           ),
         }}
       />
+
       <Tabs.Screen
         name="account"
         options={{

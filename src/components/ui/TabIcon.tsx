@@ -15,17 +15,14 @@ export const TabIcon: React.FC<TabIconProps> = ({
   name,
   focused,
   color,
-  size = 22,
+  size = 20,
 }) => {
-  // Render clean, modern glyph icons
   const renderGlyph = () => {
     switch (name) {
       case 'home':
         return '⌂';
       case 'reels':
         return '▶';
-      case 'create':
-        return '+';
       case 'chats':
         return '✉';
       case 'account':
@@ -37,8 +34,10 @@ export const TabIcon: React.FC<TabIconProps> = ({
 
   if (name === 'create') {
     return (
-      <View style={styles.createButton}>
-        <Text style={styles.createGlyph}>+</Text>
+      <View style={styles.sellButtonOuter}>
+        <View style={styles.sellButtonInner}>
+          <Text style={styles.createGlyph}>+</Text>
+        </View>
       </View>
     );
   }
@@ -71,23 +70,39 @@ const styles = StyleSheet.create({
   glyph: {
     textAlign: 'center',
   },
-  createButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: palette.brand500,
+  sellButtonOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: '#002f34',
+    borderTopColor: '#23e5db',
+    borderRightColor: '#ffce32',
+    borderBottomColor: '#23e5db',
+    borderLeftColor: '#002f34',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: palette.brand500,
+    backgroundColor: palette.pureWhite,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.35,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 4,
+    marginTop: -8,
+  },
+  sellButtonInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: palette.pureWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createGlyph: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: palette.pureWhite,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#002f34',
     marginTop: -2,
+    lineHeight: 26,
   },
 });

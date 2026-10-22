@@ -1,153 +1,305 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
-import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { palette, radii, spacing, typography } from '../../constants/tokens';
 import { useAppStore } from '../../stores/useAppStore';
-
-const CATEGORIES = [
-  { id: 'vehicles', label: 'Vehicles', icon: '🚗' },
-  { id: 'properties', label: 'Properties', icon: '🏠' },
-  { id: 'mobiles', label: 'Mobiles', icon: '📱' },
-  { id: 'jobs', label: 'Jobs', icon: '💼' },
-  { id: 'electronics', label: 'Electronics', icon: '💻' },
-  { id: 'services', label: 'Services', icon: '🛠️' },
-];
+import { useCategoriesQuery } from '../../hooks/useCategories';
+import { useListingsQuery } from '../../hooks/useListings';
+import { useToggleWishlistMutation } from '../../hooks/useWishlist';
+import { formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
+import { Listing } from '../../services/listings.service';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { selectedCity } = useAppStore();
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const { data: categories, isLoading: isCategoriesLoading } = useCategoriesQuery('flat');
+  const {
+    data: listingsData,
+    isLoading: isListingsLoading,
+    isRefetching,
+    refetch,
+  } = useListingsQuery({
+    categoryId: selectedCategory || undefined,
+    city: selectedCity && selectedCity !== 'All India' ? selectedCity : undefined,
+  });
+
+  const toggleWishlist = useToggleWishlistMutation();
+
+  const listings = listingsData?.data || [];
+
+  const handleToggleWishlist = (listing: Listing) => {
+    toggleWishlist.mutate({
+      listingId: listing.id,
+      isWishlisted: Boolean(listing.isWishlisted),
+    });
+  };
+
+  const renderCategoryItem = ({ item }: { item: { id: string; name: string; icon?: string | null } }) => {
+    const isSelected = selectedCategory === item.id;
+    return (
+      <TouchableOpacity
+        style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+        onPress={() => setSelectedCategory(isSelected ? null : item.id)}
+        activeOpacity={0.7}
+      >
+        <Text style={styles.categoryChipEmoji}>{item.icon || '🏷️'}</Text>
+        <Text
+          style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
+          numberOfLines={1}
+        >
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderListingCard = ({ item }: { item: Listing }) => {
+    const primaryMedia = item.media?.[0];
+    const imageUrl = primaryMedia?.url || primaryMedia?.thumbnailKey;
+
+    return (
+      <TouchableOpacity
+        style={styles.listingCard}
+        activeOpacity={0.88}
+        onPress={() => router.push(`/listing/${item.id}`)}
+      >
+        <View style={styles.imageContainer}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.listingImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={styles.noImagePlaceholder}>
+              <Text style={styles.noImageIcon}>📷</Text>
+              <Text style={styles.noImageText}>No photo</Text>
+            </View>
+          )}
+
+          {/* Wishlist Heart Button */}
+          <TouchableOpacity
+            style={styles.wishlistButton}
+            onPress={() => handleToggleWishlist(item)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.wishlistHeart}>
+              {item.isWishlisted ? '❤️' : '🤍'}
+            </Text>
+          </TouchableOpacity>
+
+          {item.owner?.isVerifiedSeller && (
+            <View style={styles.verifiedBadgeContainer}>
+              <Badge label="VERIFIED" variant="brand" />
+            </View>
+          )}
+        </View>
+
+        <View style={styles.cardContent}>
+          <Text style={styles.priceText}>{formatCurrencyINR(item.price)}</Text>
+          <Text style={styles.titleText} numberOfLines={2}>
+            {item.title}
+          </Text>
+
+          <View style={styles.locationDateRow}>
+            <Text style={styles.cardLocationText} numberOfLines={1}>
+              📍 {[item.locationLocality, item.locationCity].filter(Boolean).join(', ') || 'India'}
+            </Text>
+            <Text style={styles.dateText}>{formatRelativeTime(item.createdAt)}</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <ScreenContainer scrollable>
-      {/* Top Header Bar */}
+    <ScreenContainer scrollable={false} hasBottomTab>
+      {/* Top Location & Notification Bar (OLX Header Style) */}
       <View style={styles.topBar}>
-        <View style={styles.brandRow}>
-          <Text style={styles.brandTitle}>{t('common.appName', 'Mandi Live')}</Text>
-          <Badge label="Phase 0 Foundation" variant="brand" />
+        <View style={styles.brandContainer}>
+          <Text style={styles.brandTitle}>olx</Text>
+          <Text style={styles.brandSubtitle}>INDIA</Text>
         </View>
+
         <TouchableOpacity
           style={styles.locationSelector}
           onPress={() => router.push('/settings')}
+          activeOpacity={0.7}
         >
           <Text style={styles.locationPin}>📍</Text>
-          <Text style={styles.locationText}>{selectedCity}</Text>
+          <Text style={styles.locationText} numberOfLines={1}>
+            {selectedCity || 'All India'}
+          </Text>
           <Text style={styles.locationArrow}>⌄</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={() => router.push('/(tabs)/account')}
+        >
+          <Text style={styles.headerIconEmoji}>🔔</Text>
         </TouchableOpacity>
       </View>
 
       {/* Search Bar CTA */}
       <TouchableOpacity
         style={styles.searchBar}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
         onPress={() => router.push('/search')}
       >
         <Text style={styles.searchIcon}>🔍</Text>
         <Text style={styles.searchPlaceholder}>
-          {t('common.searchPlaceholder', 'Search cars, mobiles, jobs, electronics...')}
+          {t('common.searchPlaceholder', 'Find Cars, Mobile Phones and more...')}
         </Text>
+        <Text style={styles.micIcon}>🎙️</Text>
       </TouchableOpacity>
 
-      {/* Categories Section */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('home.categories', 'Top Categories')}</Text>
-        <View style={styles.categoryGrid}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat.id}
-              style={styles.categoryItem}
-              onPress={() => router.push('/search')}
-            >
-              <View style={styles.categoryIconCircle}>
-                <Text style={styles.categoryIcon}>{cat.icon}</Text>
-              </View>
-              <Text style={styles.categoryLabel}>{cat.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* Categories Horizontal Carousel */}
+      <View style={styles.categoriesSection}>
+        {isCategoriesLoading ? (
+          <ActivityIndicator size="small" color={palette.brand500} style={{ padding: spacing.sm }} />
+        ) : (
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={categories || []}
+            keyExtractor={(item) => item.id}
+            renderItem={renderCategoryItem}
+            contentContainerStyle={styles.categoriesList}
+          />
+        )}
       </View>
 
-      {/* Video Reels Banner */}
-      <Card variant="elevated" style={styles.reelsBannerCard}>
-        <View style={styles.reelsHeader}>
-          <View>
-            <Badge label="Video First" variant="brand" style={{ marginBottom: 4 }} />
-            <Text style={styles.reelsTitle}>{t('home.featuredReels', 'Trending Video Reels')}</Text>
-          </View>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/reels')}>
-            <Text style={styles.viewAllText}>{t('common.viewAll', 'View All')} →</Text>
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.reelsSubtext}>
-          Discover products via 60-second video showcases. Sellers demonstrate real conditions before you chat.
+      {/* Recommended Listings Grid */}
+      <View style={styles.listingsHeader}>
+        <Text style={styles.sectionTitle}>
+          {selectedCategory ? 'Filtered Listings' : 'Fresh Recommendations'}
         </Text>
-        <TouchableOpacity
-          style={styles.watchFeedButton}
-          onPress={() => router.push('/(tabs)/reels')}
-        >
-          <Text style={styles.watchFeedButtonText}>▶ Open Video Feed</Text>
-        </TouchableOpacity>
-      </Card>
+        {selectedCategory && (
+          <TouchableOpacity onPress={() => setSelectedCategory(null)}>
+            <Text style={styles.clearFilterText}>Clear filter</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
-      {/* Recommended Listings Preview */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {t('home.freshRecommendations', 'Fresh Recommendations')}
+      {isListingsLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={palette.brand500} />
+          <Text style={styles.loadingText}>Loading marketplace...</Text>
+        </View>
+      ) : listings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>📦</Text>
+          <Text style={styles.emptyTitle}>No listings found</Text>
+          <Text style={styles.emptySubtitle}>
+            Be the first to post an ad in this category or location!
           </Text>
-          <TouchableOpacity onPress={() => router.push('/search')}>
-            <Text style={styles.viewAllText}>{t('common.viewAll', 'View All')}</Text>
+          <TouchableOpacity
+            style={styles.postAdButton}
+            onPress={() => router.push('/(tabs)/create')}
+          >
+            <Text style={styles.postAdButtonText}>+ Post an Ad</Text>
           </TouchableOpacity>
         </View>
-
-        <Card variant="subtle" style={styles.emptyNoticeCard}>
-          <Text style={styles.noticeHeading}>Backend Integration in Phase 1</Text>
-          <Text style={styles.noticeBody}>
-            Live marketplace listings, search indexing and real-time feeds will connect to the PostgreSQL + search backend in Phase 1.
-          </Text>
-        </Card>
-      </View>
+      ) : (
+        <FlatList
+          data={listings}
+          keyExtractor={(item) => item.id}
+          numColumns={2}
+          columnWrapperStyle={styles.gridRow}
+          renderItem={renderListingCard}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.gridContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={[palette.brand500]}
+            />
+          }
+        />
+      )}
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
   topBar: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xs,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  brandContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
   },
   brandTitle: {
-    ...typography.titleLarge,
-    color: palette.brand500,
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#002f34',
+    letterSpacing: -1,
+  },
+  brandSubtitle: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: palette.brand600,
+    marginLeft: 2,
   },
   locationSelector: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xxs,
+    backgroundColor: palette.pureWhite,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    borderWidth: 1,
+    borderColor: palette.slate200,
   },
   locationPin: {
-    fontSize: 14,
+    fontSize: 12,
     marginRight: 4,
   },
   locationText: {
-    ...typography.bodySmall,
-    color: palette.slate700,
+    ...typography.caption,
+    color: palette.slate800,
     fontWeight: '600',
+    flex: 1,
   },
   locationArrow: {
-    fontSize: 14,
+    fontSize: 12,
     color: palette.slate500,
-    marginLeft: 4,
+    marginLeft: 2,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.pureWhite,
+    borderWidth: 1,
+    borderColor: palette.slate200,
+  },
+  headerIconEmoji: {
+    fontSize: 16,
   },
   searchBar: {
     flexDirection: 'row',
@@ -156,114 +308,214 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1.5,
     borderColor: palette.slate200,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
   },
   searchIcon: {
-    fontSize: 16,
+    fontSize: 15,
     marginRight: spacing.sm,
   },
   searchPlaceholder: {
-    ...typography.bodyMedium,
+    ...typography.bodySmall,
     color: palette.slate400,
     flex: 1,
   },
-  section: {
-    marginBottom: spacing.xl,
+  micIcon: {
+    fontSize: 15,
+    marginLeft: spacing.xs,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    ...typography.titleSmall,
-    color: palette.slate900,
+  categoriesSection: {
     marginBottom: spacing.sm,
   },
-  viewAllText: {
-    ...typography.caption,
-    color: palette.brand500,
-    fontWeight: '700',
+  categoriesList: {
+    paddingVertical: 4,
+    gap: spacing.xs,
   },
-  categoryGrid: {
+  categoryChip: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  categoryItem: {
-    width: '30%',
     alignItems: 'center',
     backgroundColor: palette.pureWhite,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.full,
     borderWidth: 1,
-    borderColor: palette.slate100,
+    borderColor: palette.slate200,
+    marginRight: spacing.xs,
   },
-  categoryIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: palette.brand50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
+  categoryChipSelected: {
+    backgroundColor: '#002f34',
+    borderColor: '#002f34',
   },
-  categoryIcon: {
-    fontSize: 22,
+  categoryChipEmoji: {
+    fontSize: 14,
+    marginRight: 6,
   },
-  categoryLabel: {
+  categoryChipText: {
     ...typography.caption,
-    color: palette.slate700,
     fontWeight: '600',
+    color: palette.slate700,
   },
-  reelsBannerCard: {
-    backgroundColor: palette.slate900,
-    marginBottom: spacing.xl,
-  },
-  reelsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  reelsTitle: {
-    ...typography.titleSmall,
+  categoryChipTextSelected: {
     color: palette.pureWhite,
   },
-  reelsSubtext: {
-    ...typography.bodySmall,
-    color: palette.slate300,
-    marginBottom: spacing.lg,
-    lineHeight: 18,
-  },
-  watchFeedButton: {
-    backgroundColor: palette.brand500,
-    borderRadius: radii.md,
-    paddingVertical: spacing.md,
+  listingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  watchFeedButtonText: {
+  sectionTitle: {
+    ...typography.headline,
+    color: palette.slate900,
+    fontWeight: '700',
+  },
+  clearFilterText: {
+    ...typography.caption,
+    color: palette.brand500,
+    fontWeight: '600',
+  },
+  gridContainer: {
+    paddingBottom: spacing.xl,
+  },
+  gridRow: {
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  listingCard: {
+    width: '48.5%',
+    backgroundColor: palette.pureWhite,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: palette.slate200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  imageContainer: {
+    width: '100%',
+    height: 130,
+    backgroundColor: palette.slate100,
+    position: 'relative',
+  },
+  listingImage: {
+    width: '100%',
+    height: '100%',
+  },
+  noImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noImageIcon: {
+    fontSize: 28,
+    color: palette.slate300,
+  },
+  noImageText: {
+    ...typography.caption,
+    color: palette.slate400,
+    marginTop: 2,
+  },
+  wishlistButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishlistHeart: {
+    fontSize: 14,
+  },
+  verifiedBadgeContainer: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+  },
+  cardContent: {
+    padding: spacing.sm,
+  },
+  priceText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#002f34',
+    marginBottom: 2,
+  },
+  titleText: {
+    ...typography.bodySmall,
+    color: palette.slate800,
+    fontWeight: '500',
+    height: 36,
+  },
+  locationDateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+    paddingTop: 4,
+    borderTopWidth: 0.5,
+    borderTopColor: palette.slate100,
+  },
+  cardLocationText: {
+    fontSize: 10,
+    color: palette.slate500,
+    flex: 1,
+  },
+  dateText: {
+    fontSize: 10,
+    color: palette.slate400,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing['3xl'],
+  },
+  loadingText: {
+    ...typography.bodySmall,
+    color: palette.slate500,
+    marginTop: spacing.sm,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing['3xl'],
+    paddingHorizontal: spacing.xl,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.sm,
+  },
+  emptyTitle: {
+    ...typography.headline,
+    color: palette.slate800,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    ...typography.bodySmall,
+    color: palette.slate500,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  postAdButton: {
+    backgroundColor: '#002f34',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radii.full,
+  },
+  postAdButtonText: {
     color: palette.pureWhite,
     fontWeight: '700',
     fontSize: 14,
-  },
-  emptyNoticeCard: {
-    backgroundColor: palette.slate100,
-    padding: spacing.lg,
-    borderRadius: radii.md,
-  },
-  noticeHeading: {
-    ...typography.headline,
-    color: palette.slate800,
-    marginBottom: spacing.xs,
-  },
-  noticeBody: {
-    ...typography.bodySmall,
-    color: palette.slate600,
-    lineHeight: 18,
   },
 });

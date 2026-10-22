@@ -22,6 +22,20 @@ function sanitizeValue(value: unknown, depth = 0): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
 
+  if (value instanceof Error) {
+    const errorRecord: Record<string, unknown> = {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+    };
+    for (const key of Object.getOwnPropertyNames(value)) {
+      if (!(key in errorRecord)) {
+        errorRecord[key] = (value as unknown as Record<string, unknown>)[key];
+      }
+    }
+    return sanitizeValue(errorRecord, depth);
+  }
+
   if (Array.isArray(value)) {
     return value.map((item) => sanitizeValue(item, depth + 1));
   }

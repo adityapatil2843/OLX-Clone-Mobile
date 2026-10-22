@@ -12,16 +12,15 @@ export default function CreateScreen() {
   const { t } = useTranslation();
 
   return (
-    <ScreenContainer scrollable>
+    <ScreenContainer scrollable hasBottomTab>
       <View style={styles.header}>
         <Text style={styles.title}>{t('create.title', 'What would you like to post?')}</Text>
-        <Badge label="Phase 0 Flow" variant="brand" />
       </View>
 
       {/* Option 1: Video Reel */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => router.push('/listing/create')}
+        onPress={() => router.push({ pathname: '/listing/create', params: { type: 'reel' } })}
       >
         <Card variant="elevated" style={styles.optionCard}>
           <View style={styles.iconCircleBrand}>
@@ -32,12 +31,12 @@ export default function CreateScreen() {
               <Text style={styles.optionTitle}>
                 {t('create.postReelTitle', 'Post a Video Reel')}
               </Text>
-              <Badge label="Featured" variant="brand" />
+              <Badge label="HIGH ENGAGEMENT" variant="brand" />
             </View>
             <Text style={styles.optionDesc}>
               {t(
                 'create.postReelDesc',
-                'Record or upload up to 60s product showcase video. Video listings get 4x more buyer inquiries.'
+                'Record or upload a 60s product showcase video. Video listings get 4x more buyer inquiries.'
               )}
             </Text>
           </View>
@@ -47,7 +46,7 @@ export default function CreateScreen() {
       {/* Option 2: Regular Classified Listing */}
       <TouchableOpacity
         activeOpacity={0.85}
-        onPress={() => router.push('/listing/create')}
+        onPress={() => router.push({ pathname: '/listing/create', params: { type: 'regular' } })}
       >
         <Card variant="elevated" style={styles.optionCard}>
           <View style={styles.iconCircleSlate}>
@@ -58,21 +57,18 @@ export default function CreateScreen() {
               {t('create.postListingTitle', 'Post a Regular Listing')}
             </Text>
             <Text style={styles.optionDesc}>
-              {t('create.postListingDesc', 'Add photos, price, description and location.')}
+              {t('create.postListingDesc', 'Add photos, price, description and location for classified buyers.')}
             </Text>
           </View>
         </Card>
       </TouchableOpacity>
 
-      {/* Phase 0 Engineering Notice */}
-      <Card variant="subtle" style={styles.noticeCard}>
-        <Text style={styles.noticeTitle}>Integration Status</Text>
-        <Text style={styles.noticeText}>
-          {t(
-            'create.phase0Notice',
-            'Listing creation and media upload pipelines are scheduled for Phase 1. Real media transcoding and database persistence will be wired to the Node.js + object storage services.'
-          )}
-        </Text>
+      {/* Helpful Selling Tips Card */}
+      <Card variant="subtle" style={styles.tipsCard}>
+        <Text style={styles.tipsHeading}>💡 Pro Tips for Fast Selling</Text>
+        <Text style={styles.tipsItem}>• Take clear photos in natural light from multiple angles.</Text>
+        <Text style={styles.tipsItem}>• Set a competitive market price to attract genuine buyers.</Text>
+        <Text style={styles.tipsItem}>• Respond quickly to chat inquiries to close deals faster.</Text>
       </Card>
     </ScreenContainer>
   );
@@ -81,28 +77,26 @@ export default function CreateScreen() {
 const styles = StyleSheet.create({
   header: {
     paddingVertical: spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   title: {
     ...typography.titleMedium,
-    color: palette.slate900,
-    flex: 1,
-    marginRight: spacing.sm,
+    color: '#002f34',
+    fontWeight: '800',
   },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.lg,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: palette.slate200,
   },
   iconCircleBrand: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: palette.brand50,
+    backgroundColor: '#002f34',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -129,7 +123,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxs,
   },
   optionTitle: {
-    ...typography.headline,
+    fontSize: 16,
+    fontWeight: '700',
     color: palette.slate900,
   },
   optionDesc: {
@@ -138,19 +133,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 18,
   },
-  noticeCard: {
+  tipsCard: {
     marginTop: spacing.md,
     padding: spacing.lg,
     borderRadius: radii.lg,
   },
-  noticeTitle: {
-    ...typography.headline,
+  tipsHeading: {
+    fontSize: 14,
+    fontWeight: '700',
     color: palette.slate800,
     marginBottom: spacing.xs,
   },
-  noticeText: {
-    ...typography.bodySmall,
+  tipsItem: {
+    fontSize: 12,
     color: palette.slate600,
-    lineHeight: 18,
+    lineHeight: 20,
   },
 });
