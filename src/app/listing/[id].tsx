@@ -182,6 +182,25 @@ export default function ListingDetailScreen() {
 
         {/* Listing Title, Price & Badges Card */}
         <View style={styles.detailsCard}>
+          {isOwner && (
+            <View style={styles.ownerNoticeBanner}>
+              <View style={styles.ownerNoticeLeft}>
+                <Text style={styles.ownerCrownIcon}>👑</Text>
+                <View>
+                  <Text style={styles.ownerNoticeTitle}>You own this listing</Text>
+                  <Text style={styles.ownerNoticeDesc}>Manage photos, video reel, and price</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.ownerHeaderEditBtn}
+                onPress={() => router.push(`/listing/edit/${listing.id}`)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.ownerHeaderEditBtnText}>✏️ Edit</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View style={styles.badgeRow}>
             {listing.owner?.isVerifiedSeller && (
               <Badge label="👑 ELITE SELLER" variant="brand" style={{ marginRight: 6 }} />
@@ -204,6 +223,50 @@ export default function ListingDetailScreen() {
             <Text style={styles.date}>Posted {formatRelativeTime(listing.createdAt)}</Text>
           </View>
         </View>
+
+        {/* Product Video Reel Showcase if attached */}
+        {listing.reels && listing.reels.length > 0 ? (
+          <View style={styles.sectionCard}>
+            <View style={styles.videoSectionHeader}>
+              <Text style={styles.sectionHeading}>📹 Video Showcase</Text>
+              <Badge label="REEL LIVE" variant="brand" />
+            </View>
+            <TouchableOpacity
+              style={styles.reelWatchBanner}
+              onPress={() => router.push('/(tabs)')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.reelPlayCircle}>
+                <Text style={styles.reelPlayIcon}>▶</Text>
+              </View>
+              <View style={styles.reelWatchInfo}>
+                <Text style={styles.reelWatchTitle}>Watch Product Video Reel</Text>
+                <Text style={styles.reelWatchSubtitle}>Tap to watch 60s live video showcase on Mandi Reels</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : isOwner ? (
+          /* Owner Callout to Add Reel Later */
+          <View style={styles.sectionCard}>
+            <View style={styles.videoSectionHeader}>
+              <Text style={styles.sectionHeading}>📹 Video Reel</Text>
+              <Badge label="BOOST INQUIRIES" variant="brand" />
+            </View>
+            <TouchableOpacity
+              style={styles.ownerAddReelBanner}
+              onPress={() => router.push(`/listing/edit/${listing.id}`)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ownerAddReelIcon}>🎬</Text>
+              <View style={styles.ownerAddReelInfo}>
+                <Text style={styles.ownerAddReelTitle}>+ Add a 60s Video Reel</Text>
+                <Text style={styles.ownerAddReelDesc}>
+                  Upload in MP4, MOV, or WebM format. Video listings appear on the Mandi Reels screen and get 4x more buyers!
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Description Section */}
         <View style={styles.sectionCard}>
@@ -254,33 +317,57 @@ export default function ListingDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Bottom Sticky Action Bar (Chat & Call) matching OLX Reference */}
+      {/* Bottom Sticky Action Bar */}
       <View
         style={[
           styles.bottomActionBar,
           { paddingBottom: Math.max(insets.bottom, 12) },
         ]}
       >
-        <TouchableOpacity
-          style={[styles.chatButton, createConversation.isPending && styles.disabledBtn]}
-          onPress={handleChat}
-          disabled={createConversation.isPending}
-          activeOpacity={0.85}
-        >
-          {createConversation.isPending ? (
-            <ActivityIndicator size="small" color="#002f34" />
-          ) : (
-            <Text style={styles.chatButtonText}>💬 Chat</Text>
-          )}
-        </TouchableOpacity>
+        {isOwner ? (
+          <>
+            <TouchableOpacity
+              style={styles.ownerPrimaryEditBtn}
+              onPress={() => router.push(`/listing/edit/${listing.id}`)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ownerPrimaryEditBtnText}>✏️ Edit Product</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.callButton}
-          onPress={handleCall}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.callButtonText}>📞 Call</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.ownerSecondaryMediaBtn}
+              onPress={() => router.push(`/listing/edit/${listing.id}`)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.ownerSecondaryMediaBtnText}>
+                {listing.reels && listing.reels.length > 0 ? '📸 Add Photos' : '📹 + Add Reel'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.chatButton, createConversation.isPending && styles.disabledBtn]}
+              onPress={handleChat}
+              disabled={createConversation.isPending}
+              activeOpacity={0.85}
+            >
+              {createConversation.isPending ? (
+                <ActivityIndicator size="small" color="#002f34" />
+              ) : (
+                <Text style={styles.chatButtonText}>💬 Chat</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.callButton}
+              onPress={handleCall}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.callButtonText}>📞 Call</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     </View>
   );
@@ -591,5 +678,141 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: palette.pureWhite,
     fontWeight: '600',
+  },
+  videoSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  reelWatchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9f8',
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: '#23e5db',
+  },
+  reelPlayCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#002f34',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  reelPlayIcon: {
+    color: palette.pureWhite,
+    fontSize: 18,
+    marginLeft: 2,
+  },
+  reelWatchInfo: {
+    flex: 1,
+  },
+  reelWatchTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#002f34',
+  },
+  reelWatchSubtitle: {
+    fontSize: 11,
+    color: palette.slate500,
+    marginTop: 2,
+  },
+  ownerNoticeBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#002f34',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.md,
+    marginBottom: spacing.md,
+  },
+  ownerNoticeLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ownerCrownIcon: {
+    fontSize: 22,
+    marginRight: spacing.sm,
+  },
+  ownerNoticeTitle: {
+    color: palette.pureWhite,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  ownerNoticeDesc: {
+    color: palette.slate300,
+    fontSize: 11,
+  },
+  ownerHeaderEditBtn: {
+    backgroundColor: palette.pureWhite,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+  },
+  ownerHeaderEditBtnText: {
+    color: '#002f34',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  ownerAddReelBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9f8',
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#002f34',
+  },
+  ownerAddReelIcon: {
+    fontSize: 32,
+    marginRight: spacing.md,
+  },
+  ownerAddReelInfo: {
+    flex: 1,
+  },
+  ownerAddReelTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#002f34',
+  },
+  ownerAddReelDesc: {
+    fontSize: 11,
+    color: palette.slate600,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  ownerPrimaryEditBtn: {
+    flex: 1.2,
+    height: 48,
+    borderRadius: radii.md,
+    backgroundColor: '#002f34',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownerPrimaryEditBtnText: {
+    color: palette.pureWhite,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  ownerSecondaryMediaBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: '#002f34',
+    backgroundColor: palette.pureWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownerSecondaryMediaBtnText: {
+    color: '#002f34',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

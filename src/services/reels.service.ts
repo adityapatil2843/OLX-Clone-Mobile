@@ -30,6 +30,7 @@ export interface ReelComment {
 export interface Reel {
   id: string;
   title: string;
+  caption?: string | null;
   description?: string | null;
   videoUrl?: string | null;
   videoStorageKey?: string | null;
@@ -88,9 +89,17 @@ export const reelsService = {
     return res.data;
   },
 
-  createReel: async (payload: { title: string; description?: string; listingId?: string }): Promise<Reel> => {
-    const res = await apiClient.post<{ success: boolean; data: Reel }>('/reels', payload);
-    return res.data;
+  createReel: async (payload: { title: string; description?: string; caption?: string; listingId?: string }): Promise<Reel> => {
+    const caption = payload.caption || (payload.title ? (payload.description ? `${payload.title}\n\n${payload.description}` : payload.title) : undefined);
+    const res = await apiClient.post<{ success: boolean; data: Reel }>('/reels', {
+      caption,
+      listingId: payload.listingId,
+    });
+    return {
+      ...res.data,
+      title: payload.title || res.data.title || res.data.caption || 'Product Reel',
+      description: payload.description || res.data.description || res.data.caption,
+    };
   },
 
   likeReel: async (reelId: string): Promise<void> => {

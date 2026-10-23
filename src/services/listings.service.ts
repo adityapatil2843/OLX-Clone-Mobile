@@ -45,6 +45,12 @@ export interface Listing {
   owner?: ListingOwner;
   category?: ListingCategoryInfo;
   media?: ListingMediaItem[];
+  reels?: Array<{
+    id: string;
+    caption?: string | null;
+    videoUrl?: string | null;
+    thumbnailUrl?: string | null;
+  }>;
   isWishlisted?: boolean;
 }
 
@@ -131,5 +137,9 @@ export const listingsService = {
 
   deleteListing: async (id: string): Promise<void> => {
     await apiClient.delete(`/listings/${id}`);
+  },
+
+  deleteMedia: async (listingId: string, mediaId: string): Promise<void> => {
+    await apiClient.delete(`/listings/${listingId}/media/${mediaId}`);
   },
 };

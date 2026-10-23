@@ -2,8 +2,9 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { palette } from '../../constants/tokens';
+import { Home, Clapperboard, MessageSquare, User } from 'lucide-react-native';
 import { TabIcon } from '../../components/ui/TabIcon';
+import { palette } from '../../constants/tokens';
 
 export default function TabLayout() {
   const { t } = useTranslation();
@@ -38,7 +39,17 @@ export default function TabLayout() {
         options={{
           title: t('nav.home', 'Home'),
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="home" focused={focused} color={color} />
+            <Clapperboard size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="listings"
+        options={{
+          title: t('nav.listings', 'Listings'),
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="listings" color={color} focused={focused} />
           ),
         }}
       />
@@ -46,10 +57,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="reels"
         options={{
-          title: t('nav.reels', 'Reels'),
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="reels" focused={focused} color={color} />
-          ),
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="listing"
+        options={{
+          href: null,
         }}
       />
 
@@ -57,8 +72,8 @@ export default function TabLayout() {
         name="create"
         options={{
           title: t('nav.create', 'Sell'),
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="create" focused={focused} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="create" focused={focused} />
           ),
         }}
       />
@@ -68,7 +83,7 @@ export default function TabLayout() {
         options={{
           title: t('nav.chats', 'Chats'),
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="chats" focused={focused} color={color} />
+            <MessageSquare size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />
@@ -78,7 +93,7 @@ export default function TabLayout() {
         options={{
           title: t('nav.account', 'Account'),
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="account" focused={focused} color={color} />
+            <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
           ),
         }}
       />

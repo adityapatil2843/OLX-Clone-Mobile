@@ -30,7 +30,7 @@ class ApiClient {
   constructor() {
     this.client = axios.create({
       baseURL: env.API_BASE_URL,
-      timeout: 15000,
+      timeout: 60000,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',

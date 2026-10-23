@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, ColorValue } from 'react-native';
+import { View, StyleSheet, ColorValue } from 'react-native';
+import { Home, Clapperboard, Plus, MessageSquare, User, LayoutGrid } from 'lucide-react-native';
 import { palette } from '../../constants/tokens';
 
-export type TabIconName = 'home' | 'reels' | 'create' | 'chats' | 'account';
+export type TabIconName = 'home' | 'reels' | 'listings' | 'create' | 'chats' | 'account';
 
 export interface TabIconProps {
   name: TabIconName;
@@ -15,47 +16,41 @@ export const TabIcon: React.FC<TabIconProps> = ({
   name,
   focused,
   color,
-  size = 20,
+  size = 22,
 }) => {
-  const renderGlyph = () => {
-    switch (name) {
-      case 'home':
-        return '⌂';
-      case 'reels':
-        return '▶';
-      case 'chats':
-        return '✉';
-      case 'account':
-        return '👤';
-      default:
-        return '●';
-    }
-  };
+  const iconColor = typeof color === 'string' ? color : palette.slate400;
+  const strokeWidth = focused ? 2.5 : 2;
 
   if (name === 'create') {
     return (
       <View style={styles.sellButtonOuter}>
         <View style={styles.sellButtonInner}>
-          <Text style={styles.createGlyph}>+</Text>
+          <Plus size={22} color="#002f34" strokeWidth={3} />
         </View>
       </View>
     );
   }
 
+  const renderIcon = () => {
+    switch (name) {
+      case 'home':
+        return <Home size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case 'reels':
+        return <Clapperboard size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case 'listings':
+        return <LayoutGrid size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case 'chats':
+        return <MessageSquare size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      case 'account':
+        return <User size={size} color={iconColor} strokeWidth={strokeWidth} />;
+      default:
+        return <Home size={size} color={iconColor} strokeWidth={strokeWidth} />;
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <Text
-        style={[
-          styles.glyph,
-          {
-            color,
-            fontSize: size,
-            fontWeight: focused ? '800' : '500',
-          },
-        ]}
-      >
-        {renderGlyph()}
-      </Text>
+      {renderIcon()}
     </View>
   );
 };
@@ -66,9 +61,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 28,
     height: 28,
-  },
-  glyph: {
-    textAlign: 'center',
   },
   sellButtonOuter: {
     width: 44,
@@ -97,12 +89,5 @@ const styles = StyleSheet.create({
     backgroundColor: palette.pureWhite,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  createGlyph: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#002f34',
-    marginTop: -2,
-    lineHeight: 26,
   },
 });

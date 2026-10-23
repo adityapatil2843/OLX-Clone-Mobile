@@ -1,16 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { AppButton } from '../../components/ui/AppButton';
+import { Badge } from '../../components/ui/Badge';
 import { palette, radii, spacing, typography } from '../../constants/tokens';
 import { useAppStore } from '../../stores/useAppStore';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useWishlistQuery } from '../../hooks/useWishlist';
 import { useMyListingsQuery } from '../../hooks/useListings';
 import { authService } from '../../services/auth.service';
+import { formatCurrencyINR } from '../../utils/formatters';
 import { Locale } from '../../types/common';
 
 const LANGUAGES: { code: Locale; label: string; nativeName: string }[] = [
@@ -98,6 +100,84 @@ export default function AccountScreen() {
           </View>
         )}
       </Card>
+
+      {/* ── My Listings / Products Management (Owner Only) ── */}
+      {isAuthenticated && myListingsData?.data && myListingsData.data.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={styles.sectionTitle}>📦 My Listed Products ({myListingsCount})</Text>
+            <TouchableOpacity onPress={() => router.push('/listing/create')}>
+              <Text style={styles.addNewProductLink}>+ New Ad</Text>
+            </TouchableOpacity>
+          </View>
+
+          {myListingsData.data.map((item) => {
+            const hasReel = item.reels && item.reels.length > 0;
+            const primaryImg = item.media?.[0]?.url || item.media?.[0]?.thumbnailKey;
+
+            return (
+              <View key={item.id} style={styles.myListingCard}>
+                <TouchableOpacity
+                  style={styles.myListingMain}
+                  onPress={() => router.push(`/listing/${item.id}`)}
+                  activeOpacity={0.8}
+                >
+                  {primaryImg ? (
+                    <Image source={{ uri: primaryImg }} style={styles.myListingThumb} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.myListingNoThumb}>
+                      <Text style={{ fontSize: 18 }}>📷</Text>
+                    </View>
+                  )}
+                  <View style={styles.myListingInfo}>
+                    <Text style={styles.myListingTitle} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.myListingPrice}>{formatCurrencyINR(item.price)}</Text>
+                    <View style={styles.myListingBadgeRow}>
+                      <Badge label={item.status} variant={item.status === 'ACTIVE' ? 'success' : 'default'} />
+                      {hasReel ? (
+                        <Badge label="📹 REEL LIVE" variant="brand" style={{ marginLeft: 6 }} />
+                      ) : (
+                        <Badge label="NO REEL" variant="default" style={{ marginLeft: 6 }} />
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Owner Actions for this product */}
+                <View style={styles.myListingActions}>
+                  <TouchableOpacity
+                    style={styles.actionBtnEdit}
+                    onPress={() => router.push(`/listing/edit/${item.id}`)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.actionBtnEditText}>✏️ Edit Product</Text>
+                  </TouchableOpacity>
+
+                  {!hasReel ? (
+                    <TouchableOpacity
+                      style={styles.actionBtnAddReel}
+                      onPress={() => router.push(`/listing/edit/${item.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.actionBtnAddReelText}>📹 + Add Reel</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.actionBtnView}
+                      onPress={() => router.push(`/listing/${item.id}`)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.actionBtnViewText}>👁️ View</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* Account Menu Items matching reference */}
       <View style={styles.section}>
@@ -363,5 +443,108 @@ const styles = StyleSheet.create({
   },
   logoutBtn: {
     borderColor: palette.danger500,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  addNewProductLink: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#002f34',
+  },
+  myListingCard: {
+    backgroundColor: palette.pureWhite,
+    borderRadius: radii.lg,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: palette.slate200,
+  },
+  myListingMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  myListingThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: radii.md,
+    marginRight: spacing.md,
+  },
+  myListingNoThumb: {
+    width: 60,
+    height: 60,
+    borderRadius: radii.md,
+    backgroundColor: palette.slate100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  myListingInfo: {
+    flex: 1,
+  },
+  myListingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: palette.slate900,
+  },
+  myListingPrice: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#002f34',
+    marginTop: 2,
+  },
+  myListingBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  myListingActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: palette.slate100,
+  },
+  actionBtnEdit: {
+    flex: 1,
+    backgroundColor: '#002f34',
+    paddingVertical: 7,
+    borderRadius: radii.md,
+    alignItems: 'center',
+  },
+  actionBtnEditText: {
+    color: palette.pureWhite,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  actionBtnAddReel: {
+    flex: 1,
+    backgroundColor: '#f0f9f8',
+    borderWidth: 1,
+    borderColor: '#002f34',
+    paddingVertical: 7,
+    borderRadius: radii.md,
+    alignItems: 'center',
+  },
+  actionBtnAddReelText: {
+    color: '#002f34',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  actionBtnView: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    borderRadius: radii.md,
+    backgroundColor: palette.slate100,
+    alignItems: 'center',
+  },
+  actionBtnViewText: {
+    color: palette.slate700,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

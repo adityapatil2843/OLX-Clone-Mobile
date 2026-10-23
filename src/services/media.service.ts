@@ -62,23 +62,62 @@ export const mediaService = {
     }
   },
 
+  uploadMultipleListingImages: async (
+    listingId: string,
+    uris: string[]
+  ): Promise<any[]> => {
+    const results = [];
+    for (let i = 0; i < uris.length; i++) {
+      const uri = uris[i];
+      const res = await mediaService.uploadListingMedia(listingId, {
+        uri,
+        type: 'image',
+        name: `listing_image_${i + 1}.jpg`,
+        mimeType: 'image/jpeg',
+      });
+      results.push(res);
+    }
+    return results;
+  },
+
   uploadReelMedia: async (
     reelId: string,
     videoUri: string,
-    thumbnailUri?: string
+    options?: {
+      fileName?: string;
+      mimeType?: string;
+      thumbnailUri?: string;
+    }
   ): Promise<{ id: string; videoUrl?: string }> => {
     const token = await tokenStorage.getAccessToken();
     const formData = new FormData();
 
+    // Determine extension and proper MIME type for any video format
+    const uriParts = videoUri.split('.');
+    const ext = (options?.fileName?.split('.').pop() || uriParts.pop() || 'mp4').toLowerCase().split('?')[0];
+    
+    let resolvedMime = options?.mimeType;
+    if (!resolvedMime) {
+      if (ext === 'mov') resolvedMime = 'video/quicktime';
+      else if (ext === 'webm') resolvedMime = 'video/webm';
+      else if (ext === 'avi') resolvedMime = 'video/x-msvideo';
+      else if (ext === 'mkv') resolvedMime = 'video/x-matroska';
+      else if (ext === '3gp') resolvedMime = 'video/3gpp';
+      else if (ext === 'm4v') resolvedMime = 'video/m4v';
+      else resolvedMime = 'video/mp4';
+    }
+
+    const resolvedName = options?.fileName || `reel_video.${ext}`;
+
     formData.append('video', {
       uri: videoUri,
-      name: 'reel_video.mp4',
-      type: 'video/mp4',
+      name: resolvedName,
+      type: resolvedMime,
     } as any);
 
-    if (thumbnailUri) {
+    if (options?.thumbnailUri) {
       formData.append('thumbnail', {
-        uri: thumbnailUri,
+        uri: options.thumbnailUri,
         name: 'reel_thumb.jpg',
         type: 'image/jpeg',
       } as any);

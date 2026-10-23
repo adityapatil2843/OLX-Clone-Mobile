@@ -4,518 +4,684 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Dimensions,
   FlatList,
   Image,
-  RefreshControl,
+  Modal,
+  TextInput,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import { ScreenContainer } from '../../components/ui/ScreenContainer';
-import { Badge } from '../../components/ui/Badge';
-import { palette, radii, spacing, typography } from '../../constants/tokens';
-import { useAppStore } from '../../stores/useAppStore';
-import { useCategoriesQuery } from '../../hooks/useCategories';
-import { useListingsQuery } from '../../hooks/useListings';
-import { useToggleWishlistMutation } from '../../hooks/useWishlist';
-import { formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
-import { Listing } from '../../services/listings.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { palette, radii, spacing } from '../../constants/tokens';
+import { useAuthStore } from '../../stores/useAuthStore';
+import {
+  useReelsQuery,
+  useLikeReelMutation,
+  useSaveReelMutation,
+  useReelCommentsQuery,
+  useAddReelCommentMutation,
+} from '../../hooks/useReels';
+import { Reel } from '../../services/reels.service';
+import { formatCompactCount, formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
+
+const { width: SCREEN_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get('window');
+
+function SingleReelPlayer({
+  item,
+  isActive,
+  onOpenComments,
+}: {
+  item: Reel;
+  isActive: boolean;
+  onOpenComments: (reel: Reel) => void;
+}) {
+  const router = useRouter();
+  const { isAuthenticated } = useAuthStore();
+  const likeMutation = useLikeReelMutation();
+  const saveMutation = useSaveReelMutation();
+
+  const [isLikedLocal, setIsLikedLocal] = useState(Boolean(item.isLiked));
+  const [likesCountLocal, setLikesCountLocal] = useState(item.likesCount || 0);
+  const [isSavedLocal, setIsSavedLocal] = useState(Boolean(item.isSaved));
+
+  // Initialize expo-video player
+  const videoSource = item.videoUrl || null;
+  const player = useVideoPlayer(videoSource, (p) => {
+    p.loop = true;
+    if (isActive) {
+      p.play();
+    } else {
+      p.pause();
+    }
+  });
+
+  React.useEffect(() => {
+    if (player) {
+      if (isActive) {
+        player.play();
+      } else {
+        player.pause();
+      }
+    }
+  }, [isActive, player]);
+
+  const handleToggleLike = () => {
+    if (!isAuthenticated) {
+      router.push('/(auth)/login');
+      return;
+    }
+    const nextLiked = !isLikedLocal;
+    setIsLikedLocal(nextLiked);
+    setLikesCountLocal((prev) => (nextLiked ? prev + 1 : Math.max(0, prev - 1)));
+    likeMutation.mutate({ reelId: item.id, isLiked: isLikedLocal });
+  };
+
+  const handleToggleSave = () => {
+    if (!isAuthenticated) {
+      router.push('/(auth)/login');
+      return;
+    }
+    const nextSaved = !isSavedLocal;
+    setIsSavedLocal(nextSaved);
+    saveMutation.mutate({ reelId: item.id, isSaved: isSavedLocal });
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Watch this product reel: "${item.title || item.caption || 'Product Reel'}" on Mandi Live!`,
+      });
+    } catch {
+      // User dismissed
+    }
+  };
+
+  return (
+    <View style={[styles.reelPage, { height: WINDOW_HEIGHT - 60 }]}>
+      {/* Background Video Player or Poster Fallback */}
+      {videoSource && player ? (
+        <VideoView
+          player={player}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          nativeControls={false}
+        />
+      ) : item.thumbnailUrl ? (
+        <Image
+          source={{ uri: item.thumbnailUrl }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, styles.videoFallback]}>
+          <Text style={styles.fallbackIcon}>📹</Text>
+          <Text style={styles.fallbackText}>Previewing Reel</Text>
+        </View>
+      )}
+
+      {/* Dimmed Gradient Overlay on Left and Bottom */}
+      <View style={styles.dimmedOverlay} pointerEvents="none" />
+
+      {/* Right Column Action Buttons (Instagram Reels layout) */}
+      <View style={styles.rightActionsColumn}>
+        {/* Like Button */}
+        <TouchableOpacity style={styles.actionItem} onPress={handleToggleLike} activeOpacity={0.75}>
+          <Text style={[styles.actionIcon, isLikedLocal && styles.heartLiked]}>
+            {isLikedLocal ? '❤️' : '🤍'}
+          </Text>
+          <Text style={styles.actionCount}>{formatCompactCount(likesCountLocal)}</Text>
+        </TouchableOpacity>
+
+        {/* Comment Button */}
+        <TouchableOpacity style={styles.actionItem} onPress={() => onOpenComments(item)} activeOpacity={0.75}>
+          <Text style={styles.actionIcon}>💬</Text>
+          <Text style={styles.actionCount}>{formatCompactCount(item.commentsCount || 0)}</Text>
+        </TouchableOpacity>
+
+        {/* Save / Bookmark Button */}
+        <TouchableOpacity style={styles.actionItem} onPress={handleToggleSave} activeOpacity={0.75}>
+          <Text style={styles.actionIcon}>{isSavedLocal ? '🔖' : '🏷️'}</Text>
+          <Text style={styles.actionCount}>{isSavedLocal ? 'Saved' : 'Save'}</Text>
+        </TouchableOpacity>
+
+        {/* Share Button */}
+        <TouchableOpacity style={styles.actionItem} onPress={handleShare} activeOpacity={0.75}>
+          <Text style={styles.actionIcon}>✈️</Text>
+          <Text style={styles.actionCount}>Share</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom Left Info Overlay */}
+      <View style={styles.bottomInfoOverlay}>
+        {/* Creator Info */}
+        <View style={styles.creatorRow}>
+          <View style={styles.creatorAvatar}>
+            <Text style={styles.creatorAvatarText}>
+              {item.creator?.name ? item.creator.name[0].toUpperCase() : '👤'}
+            </Text>
+          </View>
+          <Text style={styles.creatorName}>{item.creator?.name || 'Seller'}</Text>
+          {item.creator?.isVerifiedSeller && (
+            <View style={styles.verifiedTick}>
+              <Text style={styles.verifiedTickText}>✓</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Reel Title / Description */}
+        <Text style={styles.reelTitle} numberOfLines={2}>
+          {item.title || item.caption || 'Product Reel'}
+        </Text>
+        {item.description ? (
+          <Text style={styles.reelDescription} numberOfLines={2}>
+            {item.description}
+          </Text>
+        ) : null}
+
+        {/* Linked Listing Pill Button */}
+        {item.listingId && item.listing && (
+          <TouchableOpacity
+            style={styles.linkedListingPill}
+            onPress={() => router.push(`/listing/${item.listingId}`)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.pillPrice}>{formatCurrencyINR(item.listing.price)}</Text>
+            <Text style={styles.pillDivider}>•</Text>
+            <Text style={styles.pillTitle} numberOfLines={1}>
+              {item.listing.title}
+            </Text>
+            <Text style={styles.pillArrow}>›</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
-  const { selectedCity } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const insets = useSafeAreaInsets();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [commentReel, setCommentReel] = useState<Reel | null>(null);
+  const [commentText, setCommentText] = useState('');
 
-  const { data: categories, isLoading: isCategoriesLoading } = useCategoriesQuery('flat');
-  const {
-    data: listingsData,
-    isLoading: isListingsLoading,
-    isRefetching,
-    refetch,
-  } = useListingsQuery({
-    categoryId: selectedCategory || undefined,
-    city: selectedCity && selectedCity !== 'All India' ? selectedCity : undefined,
-  });
+  const { data: reelsData, isLoading, refetch } = useReelsQuery();
+  const reels = reelsData?.data || [];
 
-  const toggleWishlist = useToggleWishlistMutation();
+  const { data: comments, isLoading: isCommentsLoading } = useReelCommentsQuery(commentReel?.id || '');
+  const addCommentMutation = useAddReelCommentMutation();
 
-  const listings = listingsData?.data || [];
-
-  const handleToggleWishlist = (listing: Listing) => {
-    toggleWishlist.mutate({
-      listingId: listing.id,
-      isWishlisted: Boolean(listing.isWishlisted),
-    });
-  };
-
-  const renderCategoryItem = ({ item }: { item: { id: string; name: string; icon?: string | null } }) => {
-    const isSelected = selectedCategory === item.id;
-    return (
-      <TouchableOpacity
-        style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
-        onPress={() => setSelectedCategory(isSelected ? null : item.id)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.categoryChipEmoji}>{item.icon || '🏷️'}</Text>
-        <Text
-          style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
-          numberOfLines={1}
-        >
-          {item.name}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderListingCard = ({ item }: { item: Listing }) => {
-    const primaryMedia = item.media?.[0];
-    const imageUrl = primaryMedia?.url || primaryMedia?.thumbnailKey;
-
-    return (
-      <TouchableOpacity
-        style={styles.listingCard}
-        activeOpacity={0.88}
-        onPress={() => router.push(`/listing/${item.id}`)}
-      >
-        <View style={styles.imageContainer}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={styles.listingImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.noImagePlaceholder}>
-              <Text style={styles.noImageIcon}>📷</Text>
-              <Text style={styles.noImageText}>No photo</Text>
-            </View>
-          )}
-
-          {/* Wishlist Heart Button */}
-          <TouchableOpacity
-            style={styles.wishlistButton}
-            onPress={() => handleToggleWishlist(item)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.wishlistHeart}>
-              {item.isWishlisted ? '❤️' : '🤍'}
-            </Text>
-          </TouchableOpacity>
-
-          {item.owner?.isVerifiedSeller && (
-            <View style={styles.verifiedBadgeContainer}>
-              <Badge label="VERIFIED" variant="brand" />
-            </View>
-          )}
-        </View>
-
-        <View style={styles.cardContent}>
-          <Text style={styles.priceText}>{formatCurrencyINR(item.price)}</Text>
-          <Text style={styles.titleText} numberOfLines={2}>
-            {item.title}
-          </Text>
-
-          <View style={styles.locationDateRow}>
-            <Text style={styles.cardLocationText} numberOfLines={1}>
-              📍 {[item.locationLocality, item.locationCity].filter(Boolean).join(', ') || 'India'}
-            </Text>
-            <Text style={styles.dateText}>{formatRelativeTime(item.createdAt)}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
+  const handleSendComment = () => {
+    if (!commentReel || !commentText.trim()) return;
+    addCommentMutation.mutate(
+      { reelId: commentReel.id, text: commentText.trim() },
+      {
+        onSuccess: () => {
+          setCommentText('');
+        },
+      }
     );
   };
 
   return (
-    <ScreenContainer scrollable={false} hasBottomTab>
-      {/* Top Location & Notification Bar (OLX Header Style) */}
-      <View style={styles.topBar}>
-        <View style={styles.brandContainer}>
-          <Text style={styles.brandTitle}>olx</Text>
-          <Text style={styles.brandSubtitle}>INDIA</Text>
-        </View>
-
+    <View style={styles.screenWrapper}>
+      {/* Top Header Floating Overlay (Instagram Reels Style) */}
+      <View style={[styles.topHeader, { top: Math.max(insets.top, 12) }]}>
         <TouchableOpacity
-          style={styles.locationSelector}
-          onPress={() => router.push('/settings')}
-          activeOpacity={0.7}
+          style={styles.topIconBtn}
+          onPress={() => router.push('/listing/create?type=reel')}
         >
-          <Text style={styles.locationPin}>📍</Text>
-          <Text style={styles.locationText} numberOfLines={1}>
-            {selectedCity || 'All India'}
-          </Text>
-          <Text style={styles.locationArrow}>⌄</Text>
+          <Text style={styles.topIcon}>+</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.headerIconButton}
-          onPress={() => router.push('/(tabs)/account')}
-        >
-          <Text style={styles.headerIconEmoji}>🔔</Text>
+        <Text style={styles.topHeaderTitle}>Mandi Reels</Text>
+        <TouchableOpacity style={styles.topIconBtn} onPress={() => refetch()}>
+          <Text style={styles.topIcon}>🔄</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Search Bar CTA */}
-      <TouchableOpacity
-        style={styles.searchBar}
-        activeOpacity={0.85}
-        onPress={() => router.push('/search')}
-      >
-        <Text style={styles.searchIcon}>🔍</Text>
-        <Text style={styles.searchPlaceholder}>
-          {t('common.searchPlaceholder', 'Find Cars, Mobile Phones and more...')}
-        </Text>
-        <Text style={styles.micIcon}>🎙️</Text>
-      </TouchableOpacity>
-
-      {/* Categories Horizontal Carousel */}
-      <View style={styles.categoriesSection}>
-        {isCategoriesLoading ? (
-          <ActivityIndicator size="small" color={palette.brand500} style={{ padding: spacing.sm }} />
-        ) : (
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={categories || []}
-            keyExtractor={(item) => item.id}
-            renderItem={renderCategoryItem}
-            contentContainerStyle={styles.categoriesList}
-          />
-        )}
-      </View>
-
-      {/* Recommended Listings Grid */}
-      <View style={styles.listingsHeader}>
-        <Text style={styles.sectionTitle}>
-          {selectedCategory ? 'Filtered Listings' : 'Fresh Recommendations'}
-        </Text>
-        {selectedCategory && (
-          <TouchableOpacity onPress={() => setSelectedCategory(null)}>
-            <Text style={styles.clearFilterText}>Clear filter</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {isListingsLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={palette.brand500} />
-          <Text style={styles.loadingText}>Loading marketplace...</Text>
+      {isLoading ? (
+        <View style={styles.centeredContainer}>
+          <ActivityIndicator size="large" color={palette.pureWhite} />
+          <Text style={styles.loadingText}>Loading video feed...</Text>
         </View>
-      ) : listings.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📦</Text>
-          <Text style={styles.emptyTitle}>No listings found</Text>
-          <Text style={styles.emptySubtitle}>
-            Be the first to post an ad in this category or location!
-          </Text>
+      ) : reels.length === 0 ? (
+        <View style={styles.centeredContainer}>
+          <Text style={styles.emptyIcon}>📹</Text>
+          <Text style={styles.emptyTitle}>No reels posted yet</Text>
+          <Text style={styles.emptySubtitle}>Be the first to record and showcase your product in 60s video!</Text>
           <TouchableOpacity
-            style={styles.postAdButton}
-            onPress={() => router.push('/(tabs)/create')}
+            style={styles.createReelBtn}
+            onPress={() => router.push('/listing/create?type=reel')}
           >
-            <Text style={styles.postAdButtonText}>+ Post an Ad</Text>
+            <Text style={styles.createReelBtnText}>+ Create Reel</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
-          data={listings}
+          data={reels}
           keyExtractor={(item) => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.gridRow}
-          renderItem={renderListingCard}
+          pagingEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.gridContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              colors={[palette.brand500]}
+          onMomentumScrollEnd={(e) => {
+            const index = Math.round(e.nativeEvent.contentOffset.y / (WINDOW_HEIGHT - 60));
+            setActiveIndex(index);
+          }}
+          renderItem={({ item, index }) => (
+            <SingleReelPlayer
+              item={item}
+              isActive={index === activeIndex}
+              onOpenComments={(r) => setCommentReel(r)}
             />
-          }
+          )}
         />
       )}
-    </ScreenContainer>
+
+      {/* Comments Modal Bottom Sheet */}
+      <Modal
+        visible={Boolean(commentReel)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCommentReel(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            onPress={() => setCommentReel(null)}
+          />
+          <View style={[styles.modalSheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <View style={styles.modalDragHandle} />
+            <Text style={styles.modalTitle}>Comments</Text>
+
+            {isCommentsLoading ? (
+              <ActivityIndicator size="small" color={palette.brand500} style={{ margin: 20 }} />
+            ) : !comments || comments.length === 0 ? (
+              <View style={styles.emptyComments}>
+                <Text style={styles.emptyCommentsText}>No comments yet. Start the conversation!</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={comments}
+                keyExtractor={(item) => item.id}
+                style={styles.commentsList}
+                renderItem={({ item }) => (
+                  <View style={styles.commentItem}>
+                    <View style={styles.commentAvatar}>
+                      <Text style={styles.commentAvatarText}>
+                        {item.user?.name ? item.user.name[0].toUpperCase() : '👤'}
+                      </Text>
+                    </View>
+                    <View style={styles.commentContent}>
+                      <View style={styles.commentNameTimeRow}>
+                        <Text style={styles.commentAuthor}>{item.user?.name || 'Buyer'}</Text>
+                        <Text style={styles.commentTime}>{formatRelativeTime(item.createdAt)}</Text>
+                      </View>
+                      <Text style={styles.commentText}>{item.text}</Text>
+                    </View>
+                  </View>
+                )}
+              />
+            )}
+
+            {/* Comment Input Bar */}
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Add a comment..."
+                placeholderTextColor={palette.slate400}
+                value={commentText}
+                onChangeText={setCommentText}
+              />
+              <TouchableOpacity
+                style={[styles.sendCommentBtn, !commentText.trim() && styles.sendCommentBtnDisabled]}
+                onPress={handleSendComment}
+                disabled={!commentText.trim() || addCommentMutation.isPending}
+              >
+                <Text style={styles.sendCommentText}>Post</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  topHeader: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
-    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
   },
-  brandContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
+  topHeaderTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: palette.pureWhite,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  brandTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#002f34',
-    letterSpacing: -1,
-  },
-  brandSubtitle: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: palette.brand600,
-    marginLeft: 2,
-  },
-  locationSelector: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.pureWhite,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 6,
-    borderRadius: radii.full,
-    borderWidth: 1,
-    borderColor: palette.slate200,
-  },
-  locationPin: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  locationText: {
-    ...typography.caption,
-    color: palette.slate800,
-    fontWeight: '600',
-    flex: 1,
-  },
-  locationArrow: {
-    fontSize: 12,
-    color: palette.slate500,
-    marginLeft: 2,
-  },
-  headerIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  topIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.pureWhite,
-    borderWidth: 1,
-    borderColor: palette.slate200,
   },
-  headerIconEmoji: {
-    fontSize: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.pureWhite,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: palette.slate200,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.xs,
-    marginBottom: spacing.sm,
-  },
-  searchIcon: {
-    fontSize: 15,
-    marginRight: spacing.sm,
-  },
-  searchPlaceholder: {
-    ...typography.bodySmall,
-    color: palette.slate400,
-    flex: 1,
-  },
-  micIcon: {
-    fontSize: 15,
-    marginLeft: spacing.xs,
-  },
-  categoriesSection: {
-    marginBottom: spacing.sm,
-  },
-  categoriesList: {
-    paddingVertical: 4,
-    gap: spacing.xs,
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: palette.pureWhite,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.md,
-    borderRadius: radii.full,
-    borderWidth: 1,
-    borderColor: palette.slate200,
-    marginRight: spacing.xs,
-  },
-  categoryChipSelected: {
-    backgroundColor: '#002f34',
-    borderColor: '#002f34',
-  },
-  categoryChipEmoji: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  categoryChipText: {
-    ...typography.caption,
-    fontWeight: '600',
-    color: palette.slate700,
-  },
-  categoryChipTextSelected: {
+  topIcon: {
     color: palette.pureWhite,
+    fontSize: 18,
+    fontWeight: '700',
   },
-  listingsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  reelPage: {
+    width: SCREEN_WIDTH,
+    position: 'relative',
+    justifyContent: 'flex-end',
+    backgroundColor: '#000',
+  },
+  videoFallback: {
+    backgroundColor: '#111',
     alignItems: 'center',
-    paddingVertical: spacing.xs,
+    justifyContent: 'center',
+  },
+  fallbackIcon: {
+    fontSize: 54,
+    marginBottom: 8,
+  },
+  fallbackText: {
+    color: palette.slate400,
+    fontSize: 14,
+  },
+  dimmedOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  rightActionsColumn: {
+    position: 'absolute',
+    right: 14,
+    bottom: 80,
+    alignItems: 'center',
+    gap: 18,
+    zIndex: 5,
+  },
+  actionItem: {
+    alignItems: 'center',
+  },
+  actionIcon: {
+    fontSize: 28,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  heartLiked: {
+    transform: [{ scale: 1.1 }],
+  },
+  actionCount: {
+    color: palette.pureWhite,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 2,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  bottomInfoOverlay: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 24,
+    width: '78%',
+    zIndex: 5,
+  },
+  creatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: spacing.xs,
   },
-  sectionTitle: {
-    ...typography.headline,
-    color: palette.slate900,
-    fontWeight: '700',
-  },
-  clearFilterText: {
-    ...typography.caption,
-    color: palette.brand500,
-    fontWeight: '600',
-  },
-  gridContainer: {
-    paddingBottom: spacing.xl,
-  },
-  gridRow: {
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  listingCard: {
-    width: '48.5%',
-    backgroundColor: palette.pureWhite,
-    borderRadius: radii.md,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: palette.slate200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  imageContainer: {
-    width: '100%',
-    height: 130,
-    backgroundColor: palette.slate100,
-    position: 'relative',
-  },
-  listingImage: {
-    width: '100%',
-    height: '100%',
-  },
-  noImagePlaceholder: {
-    width: '100%',
-    height: '100%',
+  creatorAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: palette.brand500,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: palette.pureWhite,
   },
-  noImageIcon: {
-    fontSize: 28,
-    color: palette.slate300,
-  },
-  noImageText: {
-    ...typography.caption,
-    color: palette.slate400,
-    marginTop: 2,
-  },
-  wishlistButton: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  wishlistHeart: {
+  creatorAvatarText: {
+    color: palette.pureWhite,
+    fontWeight: '800',
     fontSize: 14,
   },
-  verifiedBadgeContainer: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
+  creatorName: {
+    color: palette.pureWhite,
+    fontWeight: '700',
+    fontSize: 14,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  cardContent: {
-    padding: spacing.sm,
+  verifiedTick: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#3897f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
   },
-  priceText: {
-    fontSize: 16,
+  verifiedTickText: {
+    color: palette.pureWhite,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  reelTitle: {
+    color: palette.pureWhite,
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 18,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  reelDescription: {
+    color: palette.slate200,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: spacing.xs,
+  },
+  linkedListingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    alignSelf: 'flex-start',
+    marginTop: spacing.xs,
+  },
+  pillPrice: {
     fontWeight: '800',
     color: '#002f34',
-    marginBottom: 2,
+    fontSize: 12,
   },
-  titleText: {
-    ...typography.bodySmall,
-    color: palette.slate800,
-    fontWeight: '500',
-    height: 36,
-  },
-  locationDateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.xs,
-    paddingTop: 4,
-    borderTopWidth: 0.5,
-    borderTopColor: palette.slate100,
-  },
-  cardLocationText: {
-    fontSize: 10,
-    color: palette.slate500,
-    flex: 1,
-  },
-  dateText: {
-    fontSize: 10,
+  pillDivider: {
+    marginHorizontal: 6,
     color: palette.slate400,
   },
-  loadingContainer: {
+  pillTitle: {
+    color: palette.slate800,
+    fontSize: 11,
+    maxWidth: 120,
+    fontWeight: '500',
+  },
+  pillArrow: {
+    fontSize: 14,
+    color: palette.slate600,
+    marginLeft: 4,
+  },
+  centeredContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: spacing['3xl'],
+    padding: spacing.xl,
   },
   loadingText: {
-    ...typography.bodySmall,
-    color: palette.slate500,
-    marginTop: spacing.sm,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing['3xl'],
-    paddingHorizontal: spacing.xl,
+    color: palette.slate300,
+    marginTop: spacing.md,
+    fontSize: 14,
   },
   emptyIcon: {
-    fontSize: 48,
-    marginBottom: spacing.sm,
+    fontSize: 54,
+    marginBottom: spacing.md,
   },
   emptyTitle: {
-    ...typography.headline,
-    color: palette.slate800,
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '700',
+    color: palette.pureWhite,
+    marginBottom: 6,
   },
   emptySubtitle: {
-    ...typography.bodySmall,
-    color: palette.slate500,
+    color: palette.slate400,
+    fontSize: 13,
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
-  postAdButton: {
-    backgroundColor: '#002f34',
+  createReelBtn: {
+    backgroundColor: palette.brand500,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: radii.full,
   },
-  postAdButtonText: {
+  createReelBtnText: {
     color: palette.pureWhite,
     fontWeight: '700',
     fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalBackdrop: {
+    flex: 1,
+  },
+  modalSheet: {
+    backgroundColor: palette.pureWhite,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    maxHeight: '65%',
+    paddingTop: spacing.sm,
+  },
+  modalDragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: palette.slate300,
+    alignSelf: 'center',
+    marginBottom: spacing.sm,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: palette.slate900,
+    textAlign: 'center',
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.slate100,
+  },
+  commentsList: {
+    paddingHorizontal: spacing.lg,
+    maxHeight: 280,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: palette.slate200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentAvatarText: {
+    fontWeight: '700',
+    fontSize: 12,
+    color: palette.slate700,
+  },
+  commentContent: {
+    flex: 1,
+  },
+  commentNameTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing.xs,
+  },
+  commentAuthor: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.slate800,
+  },
+  commentTime: {
+    fontSize: 10,
+    color: palette.slate400,
+  },
+  commentText: {
+    fontSize: 13,
+    color: palette.slate700,
+    marginTop: 2,
+  },
+  emptyComments: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  emptyCommentsText: {
+    fontSize: 13,
+    color: palette.slate400,
+  },
+  commentInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: palette.slate100,
+    gap: spacing.sm,
+  },
+  commentInput: {
+    flex: 1,
+    height: 40,
+    borderRadius: radii.full,
+    backgroundColor: palette.slate100,
+    paddingHorizontal: spacing.md,
+    fontSize: 13,
+    color: palette.slate800,
+  },
+  sendCommentBtn: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  sendCommentBtnDisabled: {
+    opacity: 0.4,
+  },
+  sendCommentText: {
+    fontWeight: '700',
+    color: palette.brand600,
+    fontSize: 13,
   },
 });
