@@ -1,4 +1,4 @@
-# Mandi Live — Mobile Client
+# Bazarr 360 - Mobile Client
 
 > Video-First Free Marketplace for India (Classifieds, Reels, Profiles, Chat & Location Discovery)
 

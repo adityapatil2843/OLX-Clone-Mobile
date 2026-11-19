@@ -7,18 +7,27 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { optimizeCloudinaryUrl } from '../../utils/cloudinary';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { AppHeader } from '../../components/ui/AppHeader';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
 import { Badge } from '../../components/ui/Badge';
+import { LocationPicker } from '../../components/ui/LocationPicker';
 import { palette, radii, spacing } from '../../constants/tokens';
 import { useAuthStore } from '../../stores/useAuthStore';
-import { useUserProfileQuery, useUpdateProfileMutation } from '../../hooks/useUser';
+import {
+  useUserProfileQuery,
+  useUpdateProfileMutation,
+  useUploadAvatarMutation,
+} from '../../hooks/useUser';
+import { User, MapPin, Camera, ArrowLeft } from 'lucide-react-native';
 
 export default function ProfileScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const router = useRouter();
   const { user: currentUser } = useAuthStore();
 
@@ -27,23 +36,78 @@ export default function ProfileScreen() {
 
   const { data: profile, isLoading } = useUserProfileQuery(targetUserId);
   const updateProfileMutation = useUpdateProfileMutation();
-
-  const [isEditing, setIsEditing] = useState(false);
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
+  const uploadAvatarMutation = useUploadAvatarMutation();
 
   const displayedUser = profile || (isSelf ? currentUser : null);
 
-  const handleStartEdit = () => {
-    if (displayedUser) {
-      setName(displayedUser.name || '');
-      setBio(displayedUser.bio || '');
-      setCity(displayedUser.locationCity || displayedUser.city || '');
-      setState(displayedUser.locationState || displayedUser.state || '');
+  // Automatically activate edit mode when arriving from "View & Edit Profile" (?edit=true)
+  const isEditRequested = isSelf && (edit === 'true' || edit === '1');
+  const [isEditing, setIsEditing] = useState(() => Boolean(isEditRequested));
+
+  // Form field overrides (null means fall back directly to displayedUser values)
+  const [editedName, setEditedName] = useState<string | null>(null);
+  const [editedBio, setEditedBio] = useState<string | null>(null);
+  const [editedCity, setEditedCity] = useState<string | null>(null);
+  const [editedState, setEditedState] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const name = editedName !== null ? editedName : (displayedUser?.name || '');
+  const bio = editedBio !== null ? editedBio : (displayedUser?.bio || '');
+  const city = editedCity !== null ? editedCity : (displayedUser?.locationCity || displayedUser?.city || '');
+  const state = editedState !== null ? editedState : (displayedUser?.locationState || displayedUser?.state || '');
+
+  const handlePickAvatar = async () => {
+    if (!isSelf || !targetUserId) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setIsUploadingAvatar(true);
+        uploadAvatarMutation.mutate(
+          {
+            userId: targetUserId,
+            imageUri: asset.uri,
+            fileName: asset.fileName || `avatar_${Date.now()}.jpg`,
+            mimeType: asset.mimeType || 'image/jpeg',
+          },
+          {
+            onSuccess: () => {
+              setIsUploadingAvatar(false);
+              Alert.alert('Success', 'Profile picture updated successfully!');
+            },
+            onError: (err: any) => {
+              setIsUploadingAvatar(false);
+              Alert.alert('Upload Failed', err.message || 'Failed to upload profile picture.');
+            },
+          }
+        );
+      }
+    } catch {
+      setIsUploadingAvatar(false);
+      Alert.alert('Permission Error', 'Unable to access photos. Please check device permissions.');
     }
+  };
+
+  const handleStartEdit = () => {
+    setEditedName(null);
+    setEditedBio(null);
+    setEditedCity(null);
+    setEditedState(null);
     setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditedName(null);
+    setEditedBio(null);
+    setEditedCity(null);
+    setEditedState(null);
+    setIsEditing(false);
   };
 
   const handleSaveProfile = () => {
@@ -60,6 +124,10 @@ export default function ProfileScreen() {
       },
       {
         onSuccess: () => {
+          setEditedName(null);
+          setEditedBio(null);
+          setEditedCity(null);
+          setEditedState(null);
           setIsEditing(false);
           Alert.alert('Success', 'Profile updated successfully!');
         },
@@ -73,13 +141,26 @@ export default function ProfileScreen() {
   return (
     <ScreenContainer scrollable>
       <AppHeader
-        title={isSelf ? 'My Profile' : 'Seller Profile'}
+        title={isSelf ? (isEditing ? 'Edit Profile' : 'My Profile') : 'Seller Profile'}
         onBack={() => router.back()}
+        left={<ArrowLeft size={24} color="#002f34" />}
         rightAction={
-          isSelf && !isEditing ? (
-            <TouchableOpacity onPress={handleStartEdit}>
-              <Text style={styles.editActionText}>Edit</Text>
-            </TouchableOpacity>
+          isSelf ? (
+            isEditing ? (
+              <TouchableOpacity
+                onPress={handleCancelEdit}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.cancelActionText}>Cancel</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={handleStartEdit}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={styles.editActionText}>Edit</Text>
+              </TouchableOpacity>
+            )
           ) : undefined
         }
       />
@@ -93,11 +174,60 @@ export default function ProfileScreen() {
         <View style={styles.content}>
           {/* Header Card */}
           <View style={styles.profileCard}>
-            <View style={styles.avatarLarge}>
-              <Text style={styles.avatarLargeText}>
-                {displayedUser?.name ? displayedUser.name[0].toUpperCase() : '👤'}
-              </Text>
+            <View style={styles.avatarContainer}>
+              <TouchableOpacity
+                style={styles.avatarLarge}
+                onPress={isSelf ? handlePickAvatar : undefined}
+                activeOpacity={isSelf ? 0.75 : 1}
+                disabled={isUploadingAvatar}
+              >
+                {displayedUser?.avatarUrl ? (
+                  <ExpoImage
+                    source={{ uri: optimizeCloudinaryUrl(displayedUser.avatarUrl) }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                    transition={150}
+                  />
+                ) : displayedUser?.name ? (
+                  <Text style={styles.avatarLargeText}>
+                    {displayedUser.name[0].toUpperCase()}
+                  </Text>
+                ) : (
+                  <User size={36} color="#666" />
+                )}
+
+                {/* Loading spinner over avatar while uploading */}
+                {isUploadingAvatar && (
+                  <View style={styles.avatarLoadingOverlay}>
+                    <ActivityIndicator size="small" color={palette.pureWhite} />
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Camera icon badge for the profile owner */}
+              {isSelf && (
+                <TouchableOpacity
+                  style={styles.cameraBadge}
+                  onPress={handlePickAvatar}
+                  disabled={isUploadingAvatar}
+                  activeOpacity={0.8}
+                >
+                  <Camera size={14} color={palette.pureWhite} />
+                </TouchableOpacity>
+              )}
             </View>
+
+            {isSelf && (
+              <TouchableOpacity
+                onPress={handlePickAvatar}
+                disabled={isUploadingAvatar}
+                style={styles.changePhotoBtn}
+              >
+                <Text style={styles.changePhotoText}>
+                  {isUploadingAvatar ? 'Uploading photo...' : 'Change Profile Photo'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.profileHeaderInfo}>
               <View style={styles.nameVerifiedRow}>
@@ -106,9 +236,15 @@ export default function ProfileScreen() {
                   <Badge label="VERIFIED SELLER" variant="brand" />
                 )}
               </View>
-              <Text style={styles.locationText}>
-                📍 {[displayedUser?.locationCity || displayedUser?.city, displayedUser?.locationState || displayedUser?.state].filter(Boolean).join(', ') || 'India'}
-              </Text>
+
+              {/* REPLACED EMOJI 📍 WITH LUCIDE MapPin ICON WRAPPED IN A ROW */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <MapPin size={14} color="#666" style={{ marginRight: 4 }} />
+                <Text style={styles.locationText}>
+                  {[displayedUser?.locationCity || displayedUser?.city, displayedUser?.locationState || displayedUser?.state].filter(Boolean).join(', ') || 'India'}
+                </Text>
+              </View>
+
               {displayedUser?.createdAt && (
                 <Text style={styles.joinedText}>
                   Member since {new Date(displayedUser.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
@@ -121,28 +257,27 @@ export default function ProfileScreen() {
           {isEditing ? (
             <View style={styles.editCard}>
               <Text style={styles.editTitle}>Edit Profile Information</Text>
-              <AppInput label="Full Name" value={name} onChangeText={setName} />
+              <AppInput label="Full Name" value={name} onChangeText={setEditedName} />
               <AppInput
                 label="About You / Bio"
                 value={bio}
-                onChangeText={setBio}
+                onChangeText={setEditedBio}
                 placeholder="Tell buyers about yourself or your business..."
                 multiline
                 numberOfLines={3}
               />
-              <View style={styles.rowInputs}>
-                <View style={{ flex: 1, marginRight: spacing.sm }}>
-                  <AppInput label="City" value={city} onChangeText={setCity} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <AppInput label="State" value={state} onChangeText={setState} />
-                </View>
-              </View>
+              <LocationPicker
+                selectedState={state}
+                selectedDistrict={city}
+                onStateChange={setEditedState}
+                onDistrictChange={setEditedCity}
+                showDetectButton={true}
+              />
 
               <View style={styles.editButtonRow}>
                 <AppButton
                   title="Cancel"
-                  onPress={() => setIsEditing(false)}
+                  onPress={handleCancelEdit}
                   variant="outline"
                   size="md"
                   style={{ flex: 1, marginRight: spacing.sm }}
@@ -191,7 +326,45 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#002f34',
+    overflow: 'hidden',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 4,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 36,
+  },
+  avatarLoadingOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#002f34',
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
+    borderColor: palette.pureWhite,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  changePhotoBtn: {
     marginBottom: spacing.sm,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  changePhotoText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: palette.brand600,
   },
   avatarLargeText: {
     fontSize: 28,
@@ -226,6 +399,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: palette.brand600,
+  },
+  cancelActionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.slate600,
   },
   editCard: {
     backgroundColor: palette.pureWhite,

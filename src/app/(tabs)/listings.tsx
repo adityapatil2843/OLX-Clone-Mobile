@@ -1,16 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { optimizeCloudinaryUrl } from '../../utils/cloudinary';
 import { Badge } from '../../components/ui/Badge';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { palette, radii, spacing, typography } from '../../constants/tokens';
@@ -20,6 +13,7 @@ import { useToggleWishlistMutation } from '../../hooks/useWishlist';
 import { Listing } from '../../services/listings.service';
 import { useAppStore } from '../../stores/useAppStore';
 import { formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
+import { Tag, Camera, Heart, MapPin, ChevronDown, Bell, Search, Mic, PackageSearch, Plus,} from 'lucide-react-native';
 
 export default function ListingsScreen() {
   const router = useRouter();
@@ -57,7 +51,11 @@ export default function ListingsScreen() {
         onPress={() => setSelectedCategory(isSelected ? null : item.id)}
         activeOpacity={0.7}
       >
-        <Text style={styles.categoryChipEmoji}>{item.icon || '🏷️'}</Text>
+        <Tag
+          size={14}
+          color={isSelected ? palette.pureWhite : palette.brand600}
+          style={{ marginRight: 6 }}
+        />
         <Text
           style={[styles.categoryChipText, isSelected && styles.categoryChipTextSelected]}
           numberOfLines={1}
@@ -80,14 +78,15 @@ export default function ListingsScreen() {
       >
         <View style={styles.imageContainer}>
           {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
+            <ExpoImage
+              source={{ uri: optimizeCloudinaryUrl(imageUrl) }}
               style={styles.listingImage}
-              resizeMode="cover"
+              contentFit="cover"
+              transition={150}
             />
           ) : (
             <View style={styles.noImagePlaceholder}>
-              <Text style={styles.noImageIcon}>📷</Text>
+              <Camera size={28} color={palette.slate300} strokeWidth={1.75} />
               <Text style={styles.noImageText}>No photo</Text>
             </View>
           )}
@@ -98,9 +97,12 @@ export default function ListingsScreen() {
             onPress={() => handleToggleWishlist(item)}
             activeOpacity={0.8}
           >
-            <Text style={styles.wishlistHeart}>
-              {item.isWishlisted ? '❤️' : '🤍'}
-            </Text>
+            <Heart
+              size={15}
+              color={item.isWishlisted ? '#ff3040' : palette.slate600}
+              fill={item.isWishlisted ? '#ff3040' : 'transparent'}
+              strokeWidth={2}
+            />
           </TouchableOpacity>
 
           {item.owner?.isVerifiedSeller && (
@@ -117,9 +119,12 @@ export default function ListingsScreen() {
           </Text>
 
           <View style={styles.locationDateRow}>
-            <Text style={styles.cardLocationText} numberOfLines={1}>
-              📍 {[item.locationLocality, item.locationCity].filter(Boolean).join(', ') || 'India'}
-            </Text>
+            <View style={styles.cardLocationWrapper}>
+              <MapPin size={10} color={palette.slate400} style={{ marginRight: 3 }} />
+              <Text style={styles.cardLocationText} numberOfLines={1}>
+                {[item.locationLocality, item.locationCity].filter(Boolean).join(', ') || 'India'}
+              </Text>
+            </View>
             <Text style={styles.dateText}>{formatRelativeTime(item.createdAt)}</Text>
           </View>
         </View>
@@ -132,7 +137,7 @@ export default function ListingsScreen() {
       {/* Top Location & Notification Bar (OLX Header Style) */}
       <View style={styles.topBar}>
         <View style={styles.brandContainer}>
-          <Text style={styles.brandTitle}>Mandi</Text>
+          <Text style={styles.brandTitle}>Bazarr 360</Text>
           <Text style={styles.brandSubtitle}>INDIA</Text>
         </View>
 
@@ -141,18 +146,18 @@ export default function ListingsScreen() {
           onPress={() => router.push('/settings')}
           activeOpacity={0.7}
         >
-          <Text style={styles.locationPin}>📍</Text>
+          <MapPin size={14} color={palette.brand600} style={{ marginRight: 4 }} />
           <Text style={styles.locationText} numberOfLines={1}>
             {selectedCity || 'All India'}
           </Text>
-          <Text style={styles.locationArrow}>⌄</Text>
+          <ChevronDown size={14} color={palette.slate500} style={{ marginLeft: 2 }} />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.headerIconButton}
           onPress={() => router.push('/(tabs)/account')}
         >
-          <Text style={styles.headerIconEmoji}>🔔</Text>
+          <Bell size={18} color="#002f34" strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
@@ -162,15 +167,15 @@ export default function ListingsScreen() {
         activeOpacity={0.85}
         onPress={() => router.push('/search')}
       >
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Search size={16} color={palette.slate400} style={{ marginRight: spacing.sm }} />
         <Text style={styles.searchPlaceholder}>
           {t('common.searchPlaceholder', 'Find Cars, Mobile Phones and more...')}
         </Text>
-        <Text style={styles.micIcon}>🎙️</Text>
+        <Mic size={16} color={palette.slate500} style={{ marginLeft: spacing.xs }} />
       </TouchableOpacity>
 
       {/* Categories Horizontal Carousel */}
-      <View style={styles.categoriesSection}>
+      {/* <View style={styles.categoriesSection}>
         {isCategoriesLoading ? (
           <ActivityIndicator size="small" color={palette.brand500} style={{ padding: spacing.sm }} />
         ) : (
@@ -183,7 +188,7 @@ export default function ListingsScreen() {
             contentContainerStyle={styles.categoriesList}
           />
         )}
-      </View>
+      </View> */}
 
       {/* Recommended Listings Grid */}
       <View style={styles.listingsHeader}>
@@ -204,7 +209,7 @@ export default function ListingsScreen() {
         </View>
       ) : listings.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>📦</Text>
+          <PackageSearch size={52} color={palette.slate300} strokeWidth={1.5} style={{ marginBottom: spacing.sm }} />
           <Text style={styles.emptyTitle}>No listings found</Text>
           <Text style={styles.emptySubtitle}>
             Be the first to post an ad in this category or location!
@@ -213,7 +218,8 @@ export default function ListingsScreen() {
             style={styles.postAdButton}
             onPress={() => router.push('/(tabs)/create')}
           >
-            <Text style={styles.postAdButtonText}>+ Post an Ad</Text>
+            <Plus size={16} color={palette.pureWhite} strokeWidth={2.5} style={{ marginRight: 6 }} />
+            <Text style={styles.postAdButtonText}>Post an Ad</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -225,6 +231,10 @@ export default function ListingsScreen() {
           renderItem={renderListingCard}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.gridContainer}
+          initialNumToRender={5}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -465,6 +475,12 @@ const styles = StyleSheet.create({
     borderTopWidth: 0.5,
     borderTopColor: palette.slate100,
   },
+  cardLocationWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 4,
+  },
   cardLocationText: {
     fontSize: 10,
     color: palette.slate500,
@@ -512,6 +528,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
     borderRadius: radii.full,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   postAdButtonText: {
     color: palette.pureWhite,

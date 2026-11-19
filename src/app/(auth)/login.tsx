@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { AppHeader } from '../../components/ui/AppHeader';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
+import { PasswordInput } from '../../components/PasswordInput';
 import { palette, radii, spacing, typography } from '../../constants/tokens';
 import { authService } from '../../services/auth.service';
+import { ArrowLeft } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
 
-  const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,43 +39,22 @@ export default function LoginScreen() {
     }
   };
 
-  const handleRequestOtp = async () => {
-    if (!email.trim()) {
-      setError('Please enter your email address');
-      return;
-    }
-
-    setError('');
-    setIsLoading(true);
-
-    try {
-      await authService.requestOtp({
-        email: email.trim(),
-        purpose: 'LOGIN',
-      });
-
-      router.push({
-        pathname: '/(auth)/verify-otp',
-        params: {
-          email: email.trim(),
-          purpose: 'LOGIN',
-        },
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to request OTP.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <ScreenContainer scrollable>
-      <AppHeader title="Sign In" onBack={() => router.back()} />
+      <AppHeader 
+      title="Sign In" 
+      onBack={() => router.back()}
+      left={<ArrowLeft size={24} color="#000000ff" />} 
+      />
 
       <View style={styles.content}>
         <View style={styles.titleContainer}>
-          <Text style={styles.brandLogo}>olx</Text>
-          <Text style={styles.title}>{t('auth.loginTitle', 'Welcome Back')}</Text>
+          <Image
+            source={require('../../../assets/images/icon.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>{t('auth.loginTitle', 'Welcome to Bazarr 360')}</Text>
           <Text style={styles.subtitle}>
             Sign in to access your saved listings, chats, and posted ads.
           </Text>
@@ -86,90 +66,40 @@ export default function LoginScreen() {
           </View>
         ) : null}
 
-        {/* Tab switcher: Password vs OTP */}
-        <View style={styles.modeSwitcher}>
-          <TouchableOpacity
-            style={[styles.modeTab, authMode === 'password' && styles.modeTabActive]}
-            onPress={() => {
-              setAuthMode('password');
-              setError('');
+        <View>
+          <AppInput
+            label="Email Address"
+            placeholder="you@example.com"
+            value={email}
+            onChangeText={(val) => {
+              setEmail(val);
+              if (error) setError('');
             }}
-          >
-            <Text style={[styles.modeTabText, authMode === 'password' && styles.modeTabTextActive]}>
-              Password
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeTab, authMode === 'otp' && styles.modeTabActive]}
-            onPress={() => {
-              setAuthMode('otp');
-              setError('');
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+          <PasswordInput
+            label="Password"
+            placeholder="Enter your password"
+            value={password}
+            onChangeText={(val) => {
+              setPassword(val);
+              if (error) setError('');
             }}
-          >
-            <Text style={[styles.modeTabText, authMode === 'otp' && styles.modeTabTextActive]}>
-              Email OTP
-            </Text>
-          </TouchableOpacity>
+            autoComplete="password"
+            textContentType="password"
+          />
+
+          <AppButton
+            title={isLoading ? 'Signing In...' : 'Sign In'}
+            onPress={handlePasswordLogin}
+            disabled={isLoading}
+            variant="primary"
+            size="lg"
+            style={styles.submitButton}
+          />
         </View>
-
-        {authMode === 'password' ? (
-          <View>
-            <AppInput
-              label="Email Address"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={(val) => {
-                setEmail(val);
-                if (error) setError('');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <AppInput
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={(val) => {
-                setPassword(val);
-                if (error) setError('');
-              }}
-              secureTextEntry
-            />
-
-            <AppButton
-              title={isLoading ? 'Signing In...' : 'Sign In'}
-              onPress={handlePasswordLogin}
-              disabled={isLoading}
-              variant="primary"
-              size="lg"
-              style={styles.submitButton}
-            />
-          </View>
-        ) : (
-          <View>
-            <AppInput
-              label="Email Address"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={(val) => {
-                setEmail(val);
-                if (error) setError('');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <AppButton
-              title={isLoading ? 'Sending OTP...' : 'Send Verification OTP'}
-              onPress={handleRequestOtp}
-              disabled={isLoading}
-              variant="primary"
-              size="lg"
-              style={styles.submitButton}
-            />
-          </View>
-        )}
 
         {/* Register CTA */}
         <View style={styles.registerPrompt}>
@@ -191,10 +121,9 @@ const styles = StyleSheet.create({
   titleContainer: {
     marginBottom: spacing.lg,
   },
-  brandLogo: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#002f34',
+  logoImage: {
+    width: 140,
+    height: 50,
     marginBottom: spacing.xs,
   },
   title: {
@@ -219,36 +148,6 @@ const styles = StyleSheet.create({
     color: palette.danger600,
     fontSize: 13,
     fontWeight: '600',
-  },
-  modeSwitcher: {
-    flexDirection: 'row',
-    backgroundColor: palette.slate100,
-    borderRadius: radii.md,
-    padding: 3,
-    marginBottom: spacing.lg,
-  },
-  modeTab: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: 'center',
-    borderRadius: radii.sm,
-  },
-  modeTabActive: {
-    backgroundColor: palette.pureWhite,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  modeTabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: palette.slate500,
-  },
-  modeTabTextActive: {
-    color: '#002f34',
-    fontWeight: '700',
   },
   submitButton: {
     marginTop: spacing.md,

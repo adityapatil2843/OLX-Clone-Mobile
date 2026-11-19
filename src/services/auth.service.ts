@@ -1,8 +1,10 @@
 import { apiClient } from './api-client';
 import { tokenStorage } from './token-storage';
+import { refreshCoordinator } from './refresh-coordinator';
 import { UserProfile, AuthTokens } from '../types/user';
 import { useAuthStore } from '../stores/useAuthStore';
 import { logger } from '../utils/logger';
+import { queryClient } from '../providers/QueryProvider';
 
 export class NotImplementedError extends Error {
   constructor(featureName: string) {
@@ -130,8 +132,20 @@ export const authService = {
 
   getCurrentUser: async (): Promise<UserProfile | null> => {
     try {
-      const token = await tokenStorage.getAccessToken();
-      if (!token) return null;
+      let token = await tokenStorage.getAccessToken();
+      const refreshToken = await tokenStorage.getRefreshToken();
+
+      // If neither token is present, clear local session and exit unauthenticated
+      if (!token && !refreshToken) {
+        useAuthStore.getState().clearSession();
+        return null;
+      }
+
+      // Explicitly call the shared refresh coordinator when access token is missing
+      // but a refresh token exists (Requirement 1)
+      if (!token && refreshToken) {
+        token = await refreshCoordinator.getFreshAccessToken();
+      }
 
       const res = await apiClient.get<{ success: boolean; data: UserProfile }>('/auth/me');
       if (res.data) {
@@ -141,6 +155,8 @@ export const authService = {
       return null;
     } catch (err) {
       logger.debug('Failed to get current user session', { err });
+      await tokenStorage.clearTokens();
+      useAuthStore.getState().clearSession();
       return null;
     }
   },
@@ -154,6 +170,7 @@ export const authService = {
     } finally {
       await tokenStorage.clearTokens();
       useAuthStore.getState().clearSession();
+      queryClient.clear();
     }
   },
 

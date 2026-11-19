@@ -9,3 +9,6 @@ export * from './EmptyState';
 export * from './ErrorState';
 export * from './AppHeader';
 export * from './PlaceholderScreen';
+export * from './LocationPicker';
+export * from '../PasswordInput';
+

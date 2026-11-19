@@ -47,6 +47,9 @@ export default function ChatsScreen() {
 
   // Filter conversations
   const filteredConversations = allConversations.filter((conv) => {
+    // Only show conversations that contain at least one message
+    if (!conv.lastMessageAt && !conv.lastMessageText) return false;
+
     // If filterUnread is on, check unreadCount for current user
     if (filterUnread) {
       const myPart = conv.participants?.find((p) => p.userId === user?.id);

@@ -62,14 +62,16 @@ export default function EditListingScreen() {
   // Populate listing data once loaded
   useEffect(() => {
     if (listing) {
-      setTitle(listing.title || '');
-      setDescription(listing.description || '');
-      setPrice(String(listing.price || ''));
-      setCategoryId(listing.categoryId || '');
-      setCity(listing.locationCity || '');
-      setState(listing.locationState || '');
-      setContactPhone(listing.contactPhone || '');
-      setExistingMedia(listing.media || []);
+      queueMicrotask(() => {
+        setTitle(listing.title || '');
+        setDescription(listing.description || '');
+        setPrice(String(listing.price || ''));
+        setCategoryId(listing.categoryId || '');
+        setCity(listing.locationCity || '');
+        setState(listing.locationState || '');
+        setContactPhone(listing.contactPhone || '');
+        setExistingMedia(listing.media || []);
+      });
     }
   }, [listing]);
 
@@ -261,30 +263,24 @@ export default function EditListingScreen() {
       // 2. Upload any newly added photos
       if (newPhotoUris.length > 0) {
         setStatusMessage(`Uploading ${newPhotoUris.length} new photos...`);
-        try {
-          await mediaService.uploadMultipleListingImages(listing.id, newPhotoUris);
-        } catch (imgErr) {
-          console.warn('Failed uploading new photos:', imgErr);
-        }
+        // Do not report success when the listing update succeeded but its
+        // newly selected media did not reach the backend/database.
+        await mediaService.uploadMultipleListingImages(listing.id, newPhotoUris);
       }
 
       // 3. Upload / attach Reel if selected
       if (newReelUri) {
         setStatusMessage('Uploading product video reel...');
-        try {
-          const reel = await reelsService.createReel({
-            title: title.trim(),
-            description: description.trim() || undefined,
-            listingId: listing.id,
-          });
+        const reel = await reelsService.createReel({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          listingId: listing.id,
+        });
 
-          await mediaService.uploadReelMedia(reel.id, newReelUri, {
-            fileName: newReelFileName || undefined,
-            mimeType: newReelMimeType || undefined,
-          });
-        } catch (reelErr) {
-          console.warn('Failed uploading reel:', reelErr);
-        }
+        await mediaService.uploadReelMedia(reel.id, newReelUri, {
+          fileName: newReelFileName || undefined,
+          mimeType: newReelMimeType || undefined,
+        });
       }
 
       // Invalidate relevant query caches
@@ -415,7 +411,7 @@ export default function EditListingScreen() {
               />
             </View>
             <Text style={styles.sectionBlockSubtitle}>
-              Upload a 60s video reel in any format (MP4, MOV, WebM, etc.). Appears on the Mandi Reels home screen!
+              Upload a 60s video reel in any format (MP4, MOV, WebM, etc.). Appears on the Bazarr Reels home screen!
             </Text>
           </View>
 
@@ -449,7 +445,7 @@ export default function EditListingScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.existingReelTitle}>Current Video Reel is Live</Text>
                   <Text style={styles.existingReelSubtitle}>
-                    Your product already has a reel on Mandi Reels.
+                    Your product already has a reel on Bazarr Reels.
                   </Text>
                 </View>
               </View>

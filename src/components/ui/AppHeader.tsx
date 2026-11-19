@@ -5,6 +5,7 @@ import { palette, spacing, typography } from '../../constants/tokens';
 export interface AppHeaderProps {
   title: string;
   onBack?: () => void;
+  left?: React.ReactNode;
   rightAction?: React.ReactNode;
   subtitle?: string;
   style?: ViewStyle;
@@ -13,6 +14,7 @@ export interface AppHeaderProps {
 export const AppHeader: React.FC<AppHeaderProps> = ({
   title,
   onBack,
+  left,
   rightAction,
   subtitle,
   style,
@@ -28,7 +30,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={styles.backButton}
           >
-            <Text style={styles.backIcon}>←</Text>
+            {left ?? <Text style={styles.backIcon}>←</Text>}
           </TouchableOpacity>
         )}
         <View>

@@ -1,31 +1,29 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import { Alert } from 'react-native';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
 import { tokenStorage } from './token-storage';
+import { refreshCoordinator } from './refresh-coordinator';
+import { ApiError } from './api-error';
 
-export class ApiError extends Error {
-  public statusCode?: number;
-  public code?: string;
-  public details?: unknown;
+export { ApiError } from './api-error';
 
-  constructor(message: string, statusCode?: number, code?: string, details?: unknown) {
-    super(message);
-    this.name = 'ApiError';
-    this.statusCode = statusCode;
-    this.code = code;
-    this.details = details;
+let lastRateLimitAlertTimestamp = 0;
+const RATE_LIMIT_ALERT_COOLDOWN_MS = 5000;
+
+function showRateLimitAlert(message?: string) {
+  const now = Date.now();
+  if (now - lastRateLimitAlertTimestamp > RATE_LIMIT_ALERT_COOLDOWN_MS) {
+    lastRateLimitAlertTimestamp = now;
+    Alert.alert(
+      'Too Many Requests',
+      message || 'You are making requests too quickly. Please wait a moment and try again.'
+    );
   }
-}
-
-interface QueuedPromise {
-  resolve: (token: string) => void;
-  reject: (error: unknown) => void;
 }
 
 class ApiClient {
   private client: AxiosInstance;
-  private isRefreshing = false;
-  private refreshSubscribers: QueuedPromise[] = [];
 
   constructor() {
     this.client = axios.create({
@@ -39,16 +37,6 @@ class ApiClient {
 
     this.setupInterceptors();
     logger.info(`[API Client Initialized] BaseURL: ${env.API_BASE_URL}`);
-  }
-
-  private onTokenRefreshed(token: string) {
-    this.refreshSubscribers.forEach((sub) => sub.resolve(token));
-    this.refreshSubscribers = [];
-  }
-
-  private onRefreshError(error: unknown) {
-    this.refreshSubscribers.forEach((sub) => sub.reject(error));
-    this.refreshSubscribers = [];
   }
 
   private setupInterceptors() {
@@ -91,86 +79,58 @@ class ApiClient {
           'An unexpected network error occurred';
         const code = (errObj?.code as string) || (responseData?.code as string) || error.code || 'UNKNOWN_ERROR';
         const details = errObj?.details ?? responseData?.details;
+        const retryAfter = error.response?.headers?.['retry-after'];
+
+        // Handle 429 Too Many Requests (Rate Limiting)
+        if (statusCode === 429) {
+          const rateLimitMsg =
+            (errObj?.message as string) ||
+            (responseData?.message as string) ||
+            'Too many requests. Please wait a moment and try again.';
+          logger.warn(
+            `[429 Rate Limited] Request: ${error.config?.url} | Retry-After: ${retryAfter || 'N/A'}`
+          );
+          showRateLimitAlert(rateLimitMsg);
+          return Promise.reject(
+            new ApiError(rateLimitMsg, 429, code || 'TOO_MANY_REQUESTS', details, retryAfter)
+          );
+        }
 
         // Auto refresh token on 401 Unauthorized if not already retried and not an auth route
         const isAuthUrl =
           originalRequest?.url?.includes('/auth/login') ||
           originalRequest?.url?.includes('/auth/refresh') ||
-          originalRequest?.url?.includes('/auth/register');
+          originalRequest?.url?.includes('/auth/register') ||
+          originalRequest?.url?.includes('/auth/logout');
 
         if (statusCode === 401 && originalRequest && !originalRequest._retry && !isAuthUrl) {
-          if (this.isRefreshing) {
-            return new Promise((resolve, reject) => {
-              this.refreshSubscribers.push({
-                resolve: (newToken: string) => {
-                  originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                  resolve(this.client(originalRequest));
-                },
-                reject: (err: unknown) => {
-                  reject(err);
-                },
-              });
-            });
-          }
-
           originalRequest._retry = true;
-          this.isRefreshing = true;
 
           try {
-            const refreshToken = await tokenStorage.getRefreshToken();
-            if (!refreshToken) {
-              throw new ApiError('No refresh token available', 401);
-            }
-
-            // Directly call refresh endpoint to avoid interceptor recursion
-            const refreshRes = await axios.post(`${env.API_BASE_URL}/auth/refresh`, {
-              refreshToken,
-            });
-
-            const refreshedData = refreshRes.data?.data;
-            const newAccessToken = refreshedData?.accessToken;
-            const newRefreshToken = refreshedData?.refreshToken || refreshToken;
-
-            if (!newAccessToken) {
-              throw new ApiError('Failed to refresh authentication token', 401);
-            }
-
-            await tokenStorage.saveTokens(newAccessToken, newRefreshToken);
-            this.onTokenRefreshed(newAccessToken);
-
+            const newAccessToken = await refreshCoordinator.getFreshAccessToken();
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
             return this.client(originalRequest);
-          } catch (refreshErr) {
-            this.onRefreshError(refreshErr);
-            await tokenStorage.clearTokens();
-            return Promise.reject(new ApiError(message, statusCode, code, details));
-          } finally {
-            this.isRefreshing = false;
+          } catch (_refreshErr) {
+            // refreshCoordinator handles tokenStorage and auth store cleanup on failure
+            return Promise.reject(new ApiError(message, statusCode, code, details, retryAfter));
           }
         }
 
         const method = error.config?.method?.toUpperCase() || 'GET';
-        const baseURL = error.config?.baseURL || '';
         const requestUrl = error.config?.url || '';
-        const fullUrl = requestUrl.startsWith('http')
-          ? requestUrl
-          : `${baseURL.replace(/\/$/, '')}/${requestUrl.replace(/^\//, '')}`;
 
+        // Safe structured logging without logging passwords, tokens, or credential response data
         logger.error(
-          `API Error: [${statusCode || error.code || 'NETWORK'}] [${method}] ${fullUrl}: ${message}`,
+          `API Error: [${statusCode || error.code || 'NETWORK'}] [${method}] ${requestUrl}: ${message}`,
           {
-            code: error.code,
-            message: error.message,
-            statusCode,
-            fullUrl,
-            baseURL,
-            relativeUrl: requestUrl,
+            route: requestUrl,
             method,
-            responseData,
-            isAxiosError: error.isAxiosError,
+            statusCode,
+            errorCode: code,
           }
         );
-        return Promise.reject(new ApiError(message, statusCode, code, details));
+        return Promise.reject(new ApiError(message, statusCode, code, details, retryAfter));
       }
     );
   }
@@ -206,3 +166,7 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+export const refreshAccessToken = async (): Promise<string> => {
+  return refreshCoordinator.getFreshAccessToken();
+};

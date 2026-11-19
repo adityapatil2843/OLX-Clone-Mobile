@@ -36,7 +36,7 @@ export interface ChatMessage {
   conversationId: string;
   senderId: string;
   content: string;
-  type: string;
+  type: 'TEXT' | 'IMAGE' | 'LISTING_SHARE' | string;
   isRead: boolean;
   createdAt: string;
   sender?: {
@@ -91,6 +91,14 @@ export const chatService = {
     const res = await apiClient.post<{ success: boolean; data: ChatMessage }>(
       `/conversations/${conversationId}/messages`,
       { content, type: 'TEXT' }
+    );
+    return res.data;
+  },
+
+  sendImageMessage: async (conversationId: string, imageUrl: string): Promise<ChatMessage> => {
+    const res = await apiClient.post<{ success: boolean; data: ChatMessage }>(
+      `/conversations/${conversationId}/messages`,
+      { content: imageUrl, type: 'IMAGE' }
     );
     return res.data;
   },

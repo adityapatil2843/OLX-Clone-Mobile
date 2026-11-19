@@ -1,128 +1,223 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useForm, Controller, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
 import { AppHeader } from '../../components/ui/AppHeader';
 import { AppInput } from '../../components/ui/AppInput';
 import { AppButton } from '../../components/ui/AppButton';
+import { PasswordInput } from '../../components/PasswordInput';
+import { LocationPicker } from '../../components/ui/LocationPicker';
 import { palette, radii, spacing, typography } from '../../constants/tokens';
 import { authService } from '../../services/auth.service';
+import { ArrowLeft } from 'lucide-react-native';
+
+const registerSchema = z
+  .object({
+    name: z.string().min(1, 'Full name is required'),
+    email: z
+      .string()
+      .min(1, 'Email is required')
+      .email('Please enter a valid email address'),
+    password: z
+      .string()
+      .min(1, 'Password is required')
+      .min(8, 'Password must be at least 8 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+    phone: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterScreen() {
   const router = useRouter();
+  const [serverError, setServerError] = useState('');
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterFormData>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      phone: '',
+      city: '',
+      state: '',
+    },
+    mode: 'onTouched',
+  });
 
-  const handleRegister = async () => {
-    if (!name.trim() || !email.trim() || !password.trim()) {
-      setError('Please provide your name, email, and password.');
-      return;
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.');
-      return;
-    }
+  const selectedState = useWatch({ control, name: 'state' }) || '';
+  const selectedCity = useWatch({ control, name: 'city' }) || '';
 
-    setError('');
-    setIsLoading(true);
-
+  const onSubmit = async (data: RegisterFormData) => {
+    setServerError('');
     try {
       await authService.register({
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        phone: phone.trim() || undefined,
-        locationCity: city.trim() || undefined,
-        locationState: state.trim() || undefined,
+        name: data.name.trim(),
+        email: data.email.trim(),
+        password: data.password,
+        phone: data.phone?.trim() || undefined,
+        locationCity: data.city?.trim() || undefined,
+        locationState: data.state?.trim() || undefined,
       });
 
       router.replace('/(tabs)/account');
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Please check the details and try again.');
-    } finally {
-      setIsLoading(false);
+      setServerError(
+        err.message || 'Registration failed. Please check the details and try again.'
+      );
     }
   };
 
   return (
     <ScreenContainer scrollable>
-      <AppHeader title="Create Account" onBack={() => router.back()} />
+      <AppHeader
+        title="Create Account"
+        onBack={() => router.back()}
+        left={<ArrowLeft size={24} color="#000000ff" />}
+      />
 
       <View style={styles.content}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Join Mandi Live</Text>
+          <Text style={styles.title}>Join Bazarr 360</Text>
           <Text style={styles.subtitle}>
             {"Connect with millions of buyers & sellers in India's video marketplace."}
           </Text>
         </View>
 
-        {error ? (
+        {serverError ? (
           <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{serverError}</Text>
           </View>
         ) : null}
 
-        <AppInput
-          label="Full Name *"
-          placeholder="e.g. Rahul Sharma"
-          value={name}
-          onChangeText={(val) => {
-            setName(val);
-            if (error) setError('');
+        <Controller
+          control={control}
+          name="name"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <AppInput
+              label="Full Name *"
+              placeholder="e.g. Rahul Sharma"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={(val) => {
+                onChange(val);
+                if (serverError) setServerError('');
+              }}
+              error={errors.name?.message}
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="email"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <AppInput
+              label="Email Address *"
+              placeholder="rahul@example.com"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={(val) => {
+                onChange(val);
+                if (serverError) setServerError('');
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email?.message}
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { onChange, onBlur, value, ref } }) => (
+            <PasswordInput
+              ref={ref}
+              label="Password (min 8 characters) *"
+              placeholder="Create a secure password"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={(val) => {
+                onChange(val);
+                if (serverError) setServerError('');
+              }}
+              autoComplete="new-password"
+              error={Boolean(errors.password)}
+              errorMessage={errors.password?.message}
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="confirmPassword"
+          render={({ field: { onChange, onBlur, value, ref } }) => (
+            <PasswordInput
+              ref={ref}
+              label="Confirm Password *"
+              placeholder="Re-enter your password"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={(val) => {
+                onChange(val);
+                if (serverError) setServerError('');
+              }}
+              autoComplete="new-password"
+              error={Boolean(errors.confirmPassword)}
+              errorMessage={errors.confirmPassword?.message}
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <AppInput
+              label="Mobile Phone (Optional)"
+              placeholder="+919876543210"
+              value={value}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              keyboardType="phone-pad"
+              error={errors.phone?.message}
+            />
+          )}
+        />
+
+        <LocationPicker
+          selectedState={selectedState}
+          selectedDistrict={selectedCity}
+          onStateChange={(val) => {
+            setValue('state', val, { shouldValidate: true, shouldDirty: true });
+            if (serverError) setServerError('');
+          }}
+          onDistrictChange={(val) => {
+            setValue('city', val, { shouldValidate: true, shouldDirty: true });
+            if (serverError) setServerError('');
           }}
         />
-
-        <AppInput
-          label="Email Address *"
-          placeholder="rahul@example.com"
-          value={email}
-          onChangeText={(val) => {
-            setEmail(val);
-            if (error) setError('');
-          }}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-
-        <AppInput
-          label="Password (min 8 characters) *"
-          placeholder="Create a secure password"
-          value={password}
-          onChangeText={(val) => {
-            setPassword(val);
-            if (error) setError('');
-          }}
-          secureTextEntry
-        />
-
-        <AppInput
-          label="Mobile Phone (Optional)"
-          placeholder="+919876543210"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-
-        <View style={styles.rowInputs}>
-          <View style={{ flex: 1, marginRight: spacing.sm }}>
-            <AppInput label="City" placeholder="e.g. Pune" value={city} onChangeText={setCity} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <AppInput label="State" placeholder="e.g. Maharashtra" value={state} onChangeText={setState} />
-          </View>
-        </View>
 
         <AppButton
-          title={isLoading ? 'Creating Account...' : 'Register'}
-          onPress={handleRegister}
-          disabled={isLoading}
+          title={isSubmitting ? 'Creating Account...' : 'Register'}
+          onPress={handleSubmit(onSubmit)}
+          disabled={isSubmitting}
           variant="primary"
           size="lg"
           style={styles.submitBtn}

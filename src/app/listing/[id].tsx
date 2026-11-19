@@ -1,16 +1,8 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Dimensions,
-  ActivityIndicator,
-  Linking,
-  Share,
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, Linking, Share,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { optimizeCloudinaryUrl } from '../../utils/cloudinary';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, radii, spacing } from '../../constants/tokens';
@@ -20,6 +12,9 @@ import { useToggleWishlistMutation } from '../../hooks/useWishlist';
 import { useCreateConversationMutation } from '../../hooks/useChat';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
+import { ArrowLeft, Share2, Heart, MapPin, MessageSquare, Phone, Pencil, Camera, Video, Clapperboard, ShieldCheck, Crown, AlertCircle, ImageOff, CheckCircle, User, Zap,
+} from 'lucide-react-native';
+import { BoostModal } from '../../components/boost/BoostModal';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -30,6 +25,7 @@ export default function ListingDetailScreen() {
   const { user, isAuthenticated } = useAuthStore();
 
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isBoostModalOpen, setIsBoostModalOpen] = useState(false);
 
   const { data: listing, isLoading, error } = useListingDetailQuery(id || '');
   const toggleWishlist = useToggleWishlistMutation();
@@ -47,11 +43,12 @@ export default function ListingDetailScreen() {
   if (error || !listing) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <AlertCircle size={44} color={palette.slate400} style={{ marginBottom: 12 }} />
         <Text style={styles.errorTitle}>Listing not found</Text>
         <Text style={styles.errorSubtitle}>This ad may have been removed or sold by the owner.</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>← Go Back</Text>
+          <ArrowLeft size={16} color="#ffffff" style={{ marginRight: 6 }} />
+          <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -74,7 +71,7 @@ export default function ListingDetailScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out "${listing.title}" for ${formatCurrencyINR(listing.price)} on Mandi Live!`,
+        message: `Check out "${listing.title}" for ${formatCurrencyINR(listing.price)} on Bazarr 360!`,
       });
     } catch {
       // User cancelled
@@ -137,18 +134,19 @@ export default function ListingDetailScreen() {
               {mediaList.map((media, idx) => {
                 const imgUri = media.url || media.thumbnailKey;
                 return (
-                  <Image
+                  <ExpoImage
                     key={media.id || idx}
-                    source={{ uri: imgUri || 'https://via.placeholder.com/600x400' }}
+                    source={{ uri: optimizeCloudinaryUrl(imgUri || 'https://via.placeholder.com/600x400') }}
                     style={styles.galleryImage}
-                    resizeMode="cover"
+                    contentFit="cover"
+                    transition={150}
                   />
                 );
               })}
             </ScrollView>
           ) : (
             <View style={styles.noImageContainer}>
-              <Text style={styles.noImageIcon}>📷</Text>
+              <ImageOff size={40} color={palette.slate400} style={{ marginBottom: 8 }} />
               <Text style={styles.noImageText}>No photos provided for this listing</Text>
             </View>
           )}
@@ -156,10 +154,10 @@ export default function ListingDetailScreen() {
           {/* Floating Top Nav (Back & Share) */}
           <View style={[styles.floatingTopNav, { top: Math.max(insets.top, 10) }]}>
             <TouchableOpacity style={styles.circularIconBtn} onPress={() => router.back()}>
-              <Text style={styles.navIconText}>←</Text>
+              <ArrowLeft size={18} color="#002f34" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.circularIconBtn} onPress={handleShare}>
-              <Text style={styles.navIconText}>↗</Text>
+              <Share2 size={18} color="#002f34" />
             </TouchableOpacity>
           </View>
 
@@ -175,8 +173,9 @@ export default function ListingDetailScreen() {
 
         {/* Views Notice Strip */}
         <View style={styles.viewsBanner}>
+          <ShieldCheck size={15} color="#002f34" style={{ marginRight: 6 }} />
           <Text style={styles.viewsBannerText}>
-            👁️ Verified listing • Direct seller contact available
+            Verified listing • Direct seller contact available
           </Text>
         </View>
 
@@ -185,19 +184,30 @@ export default function ListingDetailScreen() {
           {isOwner && (
             <View style={styles.ownerNoticeBanner}>
               <View style={styles.ownerNoticeLeft}>
-                <Text style={styles.ownerCrownIcon}>👑</Text>
+                <Crown size={22} color="#eab308" style={{ marginRight: 10 }} />
                 <View>
                   <Text style={styles.ownerNoticeTitle}>You own this listing</Text>
                   <Text style={styles.ownerNoticeDesc}>Manage photos, video reel, and price</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.ownerHeaderEditBtn}
-                onPress={() => router.push(`/listing/edit/${listing.id}`)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.ownerHeaderEditBtnText}>✏️ Edit</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={styles.ownerHeaderBoostBtn}
+                  onPress={() => setIsBoostModalOpen(true)}
+                  activeOpacity={0.8}
+                >
+                  <Zap size={12} color="#002f34" style={{ marginRight: 3 }} />
+                  <Text style={styles.ownerHeaderBoostBtnText}>Boost</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.ownerHeaderEditBtn}
+                  onPress={() => router.push(`/listing/edit/${listing.id}`)}
+                  activeOpacity={0.8}
+                >
+                  <Pencil size={12} color="#002f34" style={{ marginRight: 3 }} />
+                  <Text style={styles.ownerHeaderEditBtnText}>Edit</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -207,9 +217,11 @@ export default function ListingDetailScreen() {
             )}
             <Badge label={listing.status} variant={listing.status === 'ACTIVE' ? 'success' : 'default'} />
             <TouchableOpacity style={styles.wishlistHeartBtn} onPress={handleToggleWishlist}>
-              <Text style={styles.wishlistHeartText}>
-                {listing.isWishlisted ? '❤️' : '🤍'}
-              </Text>
+              <Heart
+                size={22}
+                color={listing.isWishlisted ? palette.danger500 : palette.slate400}
+                fill={listing.isWishlisted ? palette.danger500 : 'transparent'}
+              />
             </TouchableOpacity>
           </View>
 
@@ -217,9 +229,12 @@ export default function ListingDetailScreen() {
           <Text style={styles.price}>{formatCurrencyINR(listing.price)}</Text>
 
           <View style={styles.metaRow}>
-            <Text style={styles.location}>
-              📍 {[listing.locationLocality, listing.locationCity, listing.locationState].filter(Boolean).join(', ')}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+              <MapPin size={13} color={palette.slate500} style={{ marginRight: 4 }} />
+              <Text style={styles.location}>
+                {[listing.locationLocality, listing.locationCity, listing.locationState].filter(Boolean).join(', ')}
+              </Text>
+            </View>
             <Text style={styles.date}>Posted {formatRelativeTime(listing.createdAt)}</Text>
           </View>
         </View>
@@ -228,20 +243,37 @@ export default function ListingDetailScreen() {
         {listing.reels && listing.reels.length > 0 ? (
           <View style={styles.sectionCard}>
             <View style={styles.videoSectionHeader}>
-              <Text style={styles.sectionHeading}>📹 Video Showcase</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Video size={18} color="#002f34" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionHeading}>Video Showcase</Text>
+              </View>
               <Badge label="REEL LIVE" variant="brand" />
             </View>
             <TouchableOpacity
               style={styles.reelWatchBanner}
-              onPress={() => router.push('/(tabs)')}
+              onPress={() => router.push(`/reel/${listing.reels![0].id}`)}
               activeOpacity={0.85}
             >
-              <View style={styles.reelPlayCircle}>
-                <Text style={styles.reelPlayIcon}>▶</Text>
-              </View>
+              {listing.reels![0].thumbnailUrl ? (
+                <View style={{ position: 'relative', marginRight: 12 }}>
+                  <ExpoImage
+                    source={{ uri: optimizeCloudinaryUrl(listing.reels![0].thumbnailUrl) }}
+                    style={{ width: 56, height: 56, borderRadius: radii.md }}
+                    contentFit="cover"
+                    transition={150}
+                  />
+                  <View style={[styles.reelPlayCircle, { position: 'absolute', width: 28, height: 28, borderRadius: 14, top: 14, left: 14 }]}>
+                    <Text style={[styles.reelPlayIcon, { fontSize: 10 }]}>▶</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.reelPlayCircle}>
+                  <Text style={styles.reelPlayIcon}>▶</Text>
+                </View>
+              )}
               <View style={styles.reelWatchInfo}>
                 <Text style={styles.reelWatchTitle}>Watch Product Video Reel</Text>
-                <Text style={styles.reelWatchSubtitle}>Tap to watch 60s live video showcase on Mandi Reels</Text>
+                <Text style={styles.reelWatchSubtitle}>Tap to watch video showcase on Bazarr Reels</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -249,7 +281,10 @@ export default function ListingDetailScreen() {
           /* Owner Callout to Add Reel Later */
           <View style={styles.sectionCard}>
             <View style={styles.videoSectionHeader}>
-              <Text style={styles.sectionHeading}>📹 Video Reel</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Video size={18} color="#002f34" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionHeading}>Video Reel</Text>
+              </View>
               <Badge label="BOOST INQUIRIES" variant="brand" />
             </View>
             <TouchableOpacity
@@ -257,11 +292,11 @@ export default function ListingDetailScreen() {
               onPress={() => router.push(`/listing/edit/${listing.id}`)}
               activeOpacity={0.85}
             >
-              <Text style={styles.ownerAddReelIcon}>🎬</Text>
+              <Clapperboard size={24} color="#002f34" style={{ marginRight: 12 }} />
               <View style={styles.ownerAddReelInfo}>
                 <Text style={styles.ownerAddReelTitle}>+ Add a 60s Video Reel</Text>
                 <Text style={styles.ownerAddReelDesc}>
-                  Upload in MP4, MOV, or WebM format. Video listings appear on the Mandi Reels screen and get 4x more buyers!
+                  Upload in MP4, MOV, or WebM format. Video listings appear on the Bazarr Reels screen and get 4x more buyers!
                 </Text>
               </View>
             </TouchableOpacity>
@@ -300,15 +335,26 @@ export default function ListingDetailScreen() {
             activeOpacity={0.7}
           >
             <View style={styles.sellerAvatar}>
-              <Text style={styles.sellerAvatarText}>
-                {listing.owner?.name ? listing.owner.name[0].toUpperCase() : '👤'}
-              </Text>
+              {listing.owner?.avatarUrl ? (
+                <ExpoImage
+                  source={{ uri: optimizeCloudinaryUrl(listing.owner.avatarUrl) }}
+                  style={StyleSheet.absoluteFill}
+                  contentFit="cover"
+                  transition={150}
+                />
+              ) : listing.owner?.name ? (
+                <Text style={styles.sellerAvatarText}>
+                  {listing.owner.name[0].toUpperCase()}
+                </Text>
+              ) : (
+                <User size={20} color="#002f34" />
+              )}
             </View>
             <View style={styles.sellerInfo}>
               <View style={styles.sellerNameRow}>
                 <Text style={styles.sellerName}>{listing.owner?.name || 'Seller'}</Text>
                 {listing.owner?.isVerifiedSeller && (
-                  <Text style={styles.verifiedCheck}>✓</Text>
+                  <CheckCircle size={14} color="#002f34" style={{ marginLeft: 4 }} />
                 )}
               </View>
               <Text style={styles.viewProfileText}>View Profile ›</Text>
@@ -331,7 +377,21 @@ export default function ListingDetailScreen() {
               onPress={() => router.push(`/listing/edit/${listing.id}`)}
               activeOpacity={0.85}
             >
-              <Text style={styles.ownerPrimaryEditBtnText}>✏️ Edit Product</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Pencil size={15} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.ownerPrimaryEditBtnText}>Edit Product</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.ownerBoostBottomBtn}
+              onPress={() => setIsBoostModalOpen(true)}
+              activeOpacity={0.85}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Zap size={15} color="#002f34" style={{ marginRight: 6 }} />
+                <Text style={styles.ownerBoostBottomBtnText}>Boost</Text>
+              </View>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -339,9 +399,19 @@ export default function ListingDetailScreen() {
               onPress={() => router.push(`/listing/edit/${listing.id}`)}
               activeOpacity={0.85}
             >
-              <Text style={styles.ownerSecondaryMediaBtnText}>
-                {listing.reels && listing.reels.length > 0 ? '📸 Add Photos' : '📹 + Add Reel'}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                {listing.reels && listing.reels.length > 0 ? (
+                  <>
+                    <Camera size={15} color="#002f34" style={{ marginRight: 6 }} />
+                    <Text style={styles.ownerSecondaryMediaBtnText}>Add Photos</Text>
+                  </>
+                ) : (
+                  <>
+                    <Video size={15} color="#002f34" style={{ marginRight: 6 }} />
+                    <Text style={styles.ownerSecondaryMediaBtnText}>+ Add Reel</Text>
+                  </>
+                )}
+              </View>
             </TouchableOpacity>
           </>
         ) : (
@@ -355,7 +425,10 @@ export default function ListingDetailScreen() {
               {createConversation.isPending ? (
                 <ActivityIndicator size="small" color="#002f34" />
               ) : (
-                <Text style={styles.chatButtonText}>💬 Chat</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                  <MessageSquare size={16} color="#002f34" style={{ marginRight: 6 }} />
+                  <Text style={styles.chatButtonText}>Chat</Text>
+                </View>
               )}
             </TouchableOpacity>
 
@@ -364,11 +437,28 @@ export default function ListingDetailScreen() {
               onPress={handleCall}
               activeOpacity={0.85}
             >
-              <Text style={styles.callButtonText}>📞 Call</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Phone size={16} color="#ffffff" style={{ marginRight: 6 }} />
+                <Text style={styles.callButtonText}>Call</Text>
+              </View>
             </TouchableOpacity>
+          
           </>
         )}
       </View>
+
+      {/* Boost Modal (strictly owner only) */}
+      {isOwner && (
+        <BoostModal
+          visible={isBoostModalOpen}
+          onClose={() => setIsBoostModalOpen(false)}
+          target={{
+            type: 'LISTING',
+            id: listing.id,
+            title: listing.title,
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -563,6 +653,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.brand200,
     marginRight: spacing.md,
+    overflow: 'hidden',
   },
   sellerAvatarText: {
     fontSize: 18,
@@ -748,8 +839,23 @@ const styles = StyleSheet.create({
     color: palette.slate300,
     fontSize: 11,
   },
+  ownerHeaderBoostBtn: {
+    backgroundColor: '#ffce32',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: radii.full,
+  },
+  ownerHeaderBoostBtnText: {
+    color: '#002f34',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   ownerHeaderEditBtn: {
     backgroundColor: palette.pureWhite,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
     borderRadius: radii.full,
@@ -758,6 +864,19 @@ const styles = StyleSheet.create({
     color: '#002f34',
     fontSize: 12,
     fontWeight: '700',
+  },
+  ownerBoostBottomBtn: {
+    flex: 0.9,
+    height: 48,
+    borderRadius: radii.md,
+    backgroundColor: '#ffce32',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownerBoostBottomBtnText: {
+    color: '#002f34',
+    fontSize: 14,
+    fontWeight: '800',
   },
   ownerAddReelBanner: {
     flexDirection: 'row',

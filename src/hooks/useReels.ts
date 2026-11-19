@@ -1,5 +1,11 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { reelsService, ListReelsQuery } from '../services/reels.service';
+import {
+  reelsService,
+  ListReelsQuery,
+  CreateReelPayload,
+  ConfirmUploadPayload,
+  UpdateReelPayload,
+} from '../services/reels.service';
 import { queryClient } from '../providers/QueryProvider';
 
 export const REEL_QUERY_KEYS = {
@@ -68,9 +74,30 @@ export const useAddReelCommentMutation = () => {
 
 export const useCreateReelMutation = () => {
   return useMutation({
-    mutationFn: (payload: { title: string; description?: string; listingId?: string }) =>
-      reelsService.createReel(payload),
+    mutationFn: (payload: CreateReelPayload) => reelsService.createReel(payload),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: REEL_QUERY_KEYS.all });
+    },
+  });
+};
+
+export const useConfirmUploadMutation = () => {
+  return useMutation({
+    mutationFn: ({ reelId, payload }: { reelId: string; payload: ConfirmUploadPayload }) =>
+      reelsService.confirmUpload(reelId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: REEL_QUERY_KEYS.detail(variables.reelId) });
+      queryClient.invalidateQueries({ queryKey: REEL_QUERY_KEYS.all });
+    },
+  });
+};
+
+export const useUpdateReelMutation = () => {
+  return useMutation({
+    mutationFn: ({ reelId, payload }: { reelId: string; payload: UpdateReelPayload }) =>
+      reelsService.updateReel(reelId, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: REEL_QUERY_KEYS.detail(variables.reelId) });
       queryClient.invalidateQueries({ queryKey: REEL_QUERY_KEYS.all });
     },
   });

@@ -27,15 +27,28 @@ export interface ReelComment {
   };
 }
 
+export type ReelStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'READY'
+  | 'FAILED'
+  | 'PUBLISHED'
+  | 'DRAFT'
+  | 'ARCHIVED';
+
 export interface Reel {
   id: string;
   title: string;
   caption?: string | null;
   description?: string | null;
+  status?: ReelStatus | string;
   videoUrl?: string | null;
+  hlsUrl?: string | null;
   videoStorageKey?: string | null;
   thumbnailUrl?: string | null;
+  customThumbnailUrl?: string | null;
   thumbnailStorageKey?: string | null;
+  processingError?: string | null;
   durationMs?: number;
   width?: number;
   height?: number;
@@ -50,6 +63,48 @@ export interface Reel {
   isLiked?: boolean;
   isSaved?: boolean;
   createdAt: string;
+}
+
+export interface CreateReelPayload {
+  caption?: string;
+  title?: string;
+  description?: string;
+  hashtags?: string[];
+  categoryId?: string | null;
+  locationText?: string | null;
+  listingId?: string | null;
+  videoStorageKey?: string | null;
+  thumbnailStorageKey?: string | null;
+  videoProvider?: string | null;
+  durationMs?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface ConfirmUploadPayload {
+  videoStorageKey?: string;
+  storageKey?: string;
+  thumbnailStorageKey?: string | null;
+  thumbnailKey?: string | null;
+  videoProvider?: string;
+  provider?: string;
+  uploadToken?: string;
+  mimeType?: string;
+  fileType?: string;
+  sizeBytes?: number;
+  fileSizeBytes?: number;
+  durationMs?: number | null;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface UpdateReelPayload {
+  caption?: string;
+  hashtags?: string[];
+  categoryId?: string | null;
+  locationText?: string | null;
+  listingId?: string | null;
+  status?: ReelStatus | string;
 }
 
 export interface ListReelsQuery {
@@ -89,17 +144,55 @@ export const reelsService = {
     return res.data;
   },
 
-  createReel: async (payload: { title: string; description?: string; caption?: string; listingId?: string }): Promise<Reel> => {
-    const caption = payload.caption || (payload.title ? (payload.description ? `${payload.title}\n\n${payload.description}` : payload.title) : undefined);
-    const res = await apiClient.post<{ success: boolean; data: Reel }>('/reels', {
-      caption,
-      listingId: payload.listingId,
-    });
+  createReel: async (payload: CreateReelPayload): Promise<Reel> => {
+    const caption =
+      payload.caption !== undefined
+        ? payload.caption
+        : payload.title
+        ? payload.description
+          ? `${payload.title}\n\n${payload.description}`
+          : payload.title
+        : payload.description || undefined;
+
+    const body: Record<string, any> = {};
+    if (caption !== undefined) body.caption = caption;
+    if (payload.hashtags !== undefined) body.hashtags = payload.hashtags;
+    if (payload.categoryId !== undefined) body.categoryId = payload.categoryId;
+    if (payload.locationText !== undefined) body.locationText = payload.locationText;
+    if (payload.listingId !== undefined) body.listingId = payload.listingId;
+    if (payload.videoStorageKey !== undefined) body.videoStorageKey = payload.videoStorageKey;
+    if (payload.thumbnailStorageKey !== undefined) body.thumbnailStorageKey = payload.thumbnailStorageKey;
+    if (payload.videoProvider !== undefined) body.videoProvider = payload.videoProvider;
+    if (payload.durationMs !== undefined) body.durationMs = payload.durationMs;
+    if (payload.width !== undefined) body.width = payload.width;
+    if (payload.height !== undefined) body.height = payload.height;
+
+    const res = await apiClient.post<{ success: boolean; data: Reel }>('/reels', body);
     return {
       ...res.data,
       title: payload.title || res.data.title || res.data.caption || 'Product Reel',
       description: payload.description || res.data.description || res.data.caption,
     };
+  },
+
+  confirmUpload: async (reelId: string, payload: ConfirmUploadPayload): Promise<Reel> => {
+    const res = await apiClient.post<{ success: boolean; data: Reel }>(
+      `/reels/${reelId}/confirm-upload`,
+      payload
+    );
+    return res.data;
+  },
+
+  cancelUpload: async (reelId: string): Promise<void> => {
+    await apiClient.post(`/reels/${reelId}/cancel-upload`);
+  },
+
+  updateReel: async (reelId: string, payload: UpdateReelPayload): Promise<Reel> => {
+    const res = await apiClient.patch<{ success: boolean; data: Reel }>(
+      `/reels/${reelId}`,
+      payload
+    );
+    return res.data;
   },
 
   likeReel: async (reelId: string): Promise<void> => {

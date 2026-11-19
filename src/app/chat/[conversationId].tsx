@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,39 +14,88 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { palette, radii, spacing } from '../../constants/tokens';
 import { useAuthStore } from '../../stores/useAuthStore';
-import {
-  useConversationDetailQuery,
-  useMessagesQuery,
-  useSendMessageMutation,
-} from '../../hooks/useChat';
+import { useConversationDetailQuery } from '../../hooks/useChat';
+import { useChatFeed } from '../../hooks/useChatFeed';
+import { useQuickReplies } from '../../hooks/useQuickReplies';
+import { QuickRepliesBar } from '../../components/chat/QuickRepliesBar';
 import { ChatMessage } from '../../services/chat.service';
 import { formatCurrencyINR, formatRelativeTime } from '../../utils/formatters';
+import { useChatAttachments } from '../../hooks/useChatAttachments';
+import { AttachmentButton } from '../../components/chat/AttachmentButton';
+import { ImagePreview } from '../../components/chat/ImagePreview';
+import { ImageMessageBubble } from '../../components/chat/ImageMessageBubble';
 
 export default function ChatConversationScreen() {
-  const { conversationId } = useLocalSearchParams<{ conversationId: string }>();
+  const { conversationId, fromListing } = useLocalSearchParams<{
+    conversationId: string;
+    fromListing?: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
 
-  const { data: conversation, isLoading: isConvLoading } = useConversationDetailQuery(conversationId || '');
-  const { data: messagesData, isLoading: isMessagesLoading } = useMessagesQuery(conversationId || '');
-  const sendMessageMutation = useSendMessageMutation(conversationId || '');
+  const {
+    data: conversation,
+    isLoading: isConvLoading,
+    isError: isConvError,
+  } = useConversationDetailQuery(conversationId || '');
 
-  const messages = messagesData?.data || [];
+  const {
+    messages,
+    isLoading: isMessagesLoading,
+    isLoadingOlder,
+    hasMoreOlder,
+    loadOlderMessages,
+    sendMessage,
+    addOutgoingMessage,
+    flatListRef,
+    handleScroll,
+    isSending,
+  } = useChatFeed({
+    conversationId,
+    currentUserId: user?.id,
+  });
+
+  const attachments = useChatAttachments(conversationId || '');
 
   const otherParticipant = conversation?.participants?.find((p) => p.userId !== user?.id);
   const otherName = otherParticipant?.user?.name || 'Seller / Buyer';
 
+  const hasListingContext =
+    fromListing === 'true' || Boolean(conversation?.listingId || conversation?.listing);
+
+  const {
+    suggestions: quickReplies,
+    isVisible: isQuickRepliesVisible,
+    handleSelectSuggestion,
+    dismiss: dismissQuickReplies,
+  } = useQuickReplies({
+    conversationId,
+    hasListingContext,
+    inputText,
+    isLoading: isConvLoading,
+    isError: isConvError,
+    onSelectSuggestion: (text) => setInputText(text),
+  });
+
   const handleSend = () => {
+    if (attachments.pendingImage) {
+      attachments
+        .sendImage()
+        .then((sentMsg) => {
+          if (sentMsg) {
+            addOutgoingMessage(sentMsg);
+          }
+        })
+        .catch(() => undefined);
+      return;
+    }
     if (!inputText.trim()) return;
     const text = inputText.trim();
     setInputText('');
-    sendMessageMutation.mutate(text, {
-      onSuccess: () => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      },
+    sendMessage(text).catch((err: any) => {
+      alert(err.message || 'Could not send message');
     });
   };
 
@@ -56,9 +105,11 @@ export default function ChatConversationScreen() {
     return (
       <View style={[styles.bubbleRow, isMine ? styles.myBubbleRow : styles.theirBubbleRow]}>
         <View style={[styles.bubble, isMine ? styles.myBubble : styles.theirBubble]}>
-          <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.theirMessageText]}>
-            {item.content}
-          </Text>
+          {item.type === 'IMAGE' ? (
+            <ImageMessageBubble uri={item.content} isMine={isMine} />
+          ) : (
+            <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.theirMessageText]}>{item.content}</Text>
+          )}
           <Text style={[styles.timeText, isMine ? styles.myTimeText : styles.theirTimeText]}>
             {formatRelativeTime(item.createdAt)}
           </Text>
@@ -132,12 +183,46 @@ export default function ChatConversationScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderMessageBubble}
           contentContainerStyle={styles.messagesList}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          ListHeaderComponent={
+            hasMoreOlder ? (
+              <View style={styles.loadOlderContainer}>
+                {isLoadingOlder ? (
+                  <ActivityIndicator size="small" color="#002f34" />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.loadOlderButton}
+                    onPress={loadOlderMessages}
+                    accessibilityRole="button"
+                    accessibilityLabel="Load earlier messages"
+                  >
+                    <Text style={styles.loadOlderText}>Load earlier messages</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : null
+          }
+        />
+      )}
+
+      {/* Quick Reply Suggestions */}
+      {isQuickRepliesVisible && (
+        <QuickRepliesBar
+          suggestions={quickReplies}
+          onSelect={handleSelectSuggestion}
+          onDismiss={dismissQuickReplies}
         />
       )}
 
       {/* Input Bar */}
+      {attachments.pendingImage && (
+        <ImagePreview uri={attachments.pendingImage.uri} onRemove={attachments.removeImage} disabled={attachments.isSendingImage} />
+      )}
+      {attachments.error && <Text style={styles.attachmentError}>{attachments.error}</Text>}
       <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <AttachmentButton onSelect={attachments.selectImage} />
         <TextInput
           style={styles.textInput}
           placeholder="Type a message..."
@@ -147,12 +232,12 @@ export default function ChatConversationScreen() {
           multiline
         />
         <TouchableOpacity
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+          style={[styles.sendButton, (!inputText.trim() && !attachments.pendingImage) && styles.sendButtonDisabled]}
           onPress={handleSend}
-          disabled={!inputText.trim() || sendMessageMutation.isPending}
+          disabled={(!inputText.trim() && !attachments.pendingImage) || isSending || attachments.isSendingImage}
           activeOpacity={0.8}
         >
-          {sendMessageMutation.isPending ? (
+          {isSending || attachments.isSendingImage ? (
             <ActivityIndicator size="small" color={palette.pureWhite} />
           ) : (
             <Text style={styles.sendIcon}>➤</Text>
@@ -338,6 +423,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.xl,
   },
+  attachmentError: {
+    backgroundColor: palette.pureWhite,
+    color: palette.danger600,
+    fontSize: 12,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+  },
   loadingText: {
     marginTop: spacing.sm,
     fontSize: 13,
@@ -357,5 +449,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: palette.slate500,
     textAlign: 'center',
+  },
+  loadOlderContainer: {
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadOlderButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+    borderRadius: radii.full,
+    backgroundColor: palette.pureWhite,
+    borderWidth: 1,
+    borderColor: palette.slate200,
+  },
+  loadOlderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: palette.slate600,
   },
 });

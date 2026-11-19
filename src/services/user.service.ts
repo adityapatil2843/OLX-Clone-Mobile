@@ -22,4 +22,11 @@ export const userService = {
     );
     return res.data;
   },
+
+  deleteUserAccount: async (userId: string): Promise<{ message: string }> => {
+    const res = await apiClient.delete<{ success: boolean; data: { message: string } }>(
+      `/users/${userId}`
+    );
+    return res.data;
+  },
 };

@@ -5,9 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  Image,
   ActivityIndicator,
 } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { optimizeCloudinaryUrl } from '../../utils/cloudinary';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { ScreenContainer } from '../../components/ui/ScreenContainer';
@@ -56,7 +57,12 @@ export default function SearchScreen() {
       >
         <View style={styles.cardImageContainer}>
           {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.cardImage} resizeMode="cover" />
+            <ExpoImage
+              source={{ uri: optimizeCloudinaryUrl(imageUrl) }}
+              style={styles.cardImage}
+              contentFit="cover"
+              transition={150}
+            />
           ) : (
             <View style={styles.noImage}>
               <Text>📷</Text>
@@ -96,7 +102,7 @@ export default function SearchScreen() {
       </View>
 
       {/* Categories Filter Strip */}
-      {categories && categories.length > 0 && (
+      {/* {categories && categories.length > 0 && (
         <View style={styles.categoriesRow}>
           <FlatList
             horizontal
@@ -118,7 +124,7 @@ export default function SearchScreen() {
             }}
           />
         </View>
-      )}
+      )} */}
 
       {/* Popular Suggestions if query is empty */}
       {!query && !selectedCategory && (
@@ -159,6 +165,10 @@ export default function SearchScreen() {
           renderItem={renderListingCard}
           contentContainerStyle={styles.gridContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={5}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </ScreenContainer>

@@ -60,16 +60,22 @@ export function resolveDevHost(fallbackIp?: string): string {
 export function resolveNetworkUrl(url: string): string {
   if (!url) return url;
 
+  let sanitized = url.trim();
+  if (sanitized.includes('||')) {
+    const parts = sanitized.split('||').map((p) => p.trim()).filter(Boolean);
+    sanitized = parts[0] || '';
+  }
+
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(sanitized);
     if (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') {
       parsed.hostname = resolveDevHost();
       return parsed.toString().replace(/\/$/, '');
     }
-    return url;
+    return sanitized;
   } catch {
     // If not a full URL or relative
-    return url;
+    return sanitized;
   }
 }
 
@@ -79,6 +85,7 @@ export function resolveNetworkUrl(url: string): string {
  */
 const envSchema = z.object({
   API_BASE_URL: z.string().url().default('http://localhost:8000/api/v1'),
+  API_URL: z.string().url().default('http://localhost:8000'),
   SOCKET_URL: z.string().url().default('http://localhost:8000'),
   APP_ENV: z.enum(['development', 'staging', 'production']).default('development'),
   APP_NAME: z.string().default('OLX Clone Mobile'),
@@ -88,12 +95,16 @@ const envSchema = z.object({
 const defaultApiBaseUrl = resolveNetworkUrl(
   process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8000/api/v1'
 );
+const defaultApiUrl = resolveNetworkUrl(
+  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000'
+);
 const defaultSocketUrl = resolveNetworkUrl(
   process.env.EXPO_PUBLIC_SOCKET_URL || 'http://localhost:8000'
 );
 
 const rawEnv = {
   API_BASE_URL: defaultApiBaseUrl,
+  API_URL: defaultApiUrl,
   SOCKET_URL: defaultSocketUrl,
   APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
   APP_NAME: process.env.EXPO_PUBLIC_APP_NAME,
@@ -113,6 +124,7 @@ export const env = parsed.success
   ? parsed.data
   : {
       API_BASE_URL: defaultApiBaseUrl,
+      API_URL: defaultApiUrl,
       SOCKET_URL: defaultSocketUrl,
       APP_ENV: 'development' as const,
       APP_NAME: 'OLX Clone Mobile',

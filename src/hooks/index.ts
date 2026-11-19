@@ -3,4 +3,6 @@ export * from './useListings';
 export * from './useReels';
 export * from './useWishlist';
 export * from './useChat';
+export * from './useChatFeed';
+export * from './useQuickReplies';
 export * from './useUser';

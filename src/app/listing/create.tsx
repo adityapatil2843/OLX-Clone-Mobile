@@ -8,7 +8,6 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  Platform,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,8 +21,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { useCategoriesQuery } from '../../hooks/useCategories';
 import { useCreateListingMutation, LISTING_QUERY_KEYS } from '../../hooks/useListings';
 import { useCreateReelMutation } from '../../hooks/useReels';
-import { env } from '../../config/env';
-import { tokenStorage } from '../../services/token-storage';
+import { Lock, Video, Camera, Clapperboard, ImagePlus, X, Plus, FileText, ArrowLeft } from 'lucide-react-native';
 import { mediaService } from '../../services/media.service';
 import { queryClient } from '../../providers/QueryProvider';
 
@@ -45,13 +43,16 @@ export default function CreateListingScreen() {
   const [state, setState] = useState(user?.locationState || user?.state || 'Maharashtra');
   const [contactPhone, setContactPhone] = useState(user?.phone || '+919876543210');
 
-  // Photos media (multiple)
-  const [selectedPhotoUris, setSelectedPhotoUris] = useState<string[]>([]);
+  // Photos media (multiple) with metadata
+  const [selectedPhotos, setSelectedPhotos] = useState<
+    { uri: string; fileName?: string; mimeType?: string }[]
+  >([]);
 
   // Reel video media (any format: mp4, mov, webm, etc.)
   const [selectedReelVideoUri, setSelectedReelVideoUri] = useState<string | null>(null);
   const [selectedReelFileName, setSelectedReelFileName] = useState<string | null>(null);
   const [selectedReelMimeType, setSelectedReelMimeType] = useState<string | null>(null);
+  const [selectedReelFileSize, setSelectedReelFileSize] = useState<number | undefined>(undefined);
   const [reelDuration, setReelDuration] = useState<number | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,12 +62,16 @@ export default function CreateListingScreen() {
   if (!isAuthenticated) {
     return (
       <ScreenContainer scrollable={false}>
-        <AppHeader title="Post to Marketplace" onBack={() => router.back()} />
+        <AppHeader 
+        title="Post to the Marketplace" 
+        onBack={() => router.back()} 
+        left={<ArrowLeft size={24} color="#000000ff" />} 
+        />
         <View style={styles.authPromptContainer}>
-          <Text style={styles.authPromptIcon}>🔒</Text>
+          <Lock size={44} color="#002f34" style={{ marginBottom: 12 }} />
           <Text style={styles.authPromptTitle}>Sign in required</Text>
           <Text style={styles.authPromptSubtitle}>
-            You must be logged in to post listings or share video reels on Mandi Live.
+            You must be logged in to post listings or share video reels on Bazarr 360.
           </Text>
           <AppButton
             title="Sign In to Continue"
@@ -83,7 +88,7 @@ export default function CreateListingScreen() {
   // Pick photos (allow multiple)
   const handlePickPhoto = async () => {
     try {
-      const remaining = 10 - selectedPhotoUris.length;
+      const remaining = 10 - selectedPhotos.length;
       if (remaining <= 0) {
         Alert.alert('Limit Reached', 'You can upload a maximum of 10 photos per listing.');
         return;
@@ -96,8 +101,15 @@ export default function CreateListingScreen() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uris = result.assets.map((a) => a.uri);
-        setSelectedPhotoUris((prev) => [...prev, ...uris].slice(0, 10));
+        const newItems = result.assets.map((a) => {
+          const guessedExt = a.uri.split('.').pop()?.split('?')[0]?.toLowerCase() || 'jpg';
+          return {
+            uri: a.uri,
+            fileName: a.fileName || a.uri.split('/').pop() || `product_${Date.now()}.${guessedExt}`,
+            mimeType: a.mimeType || (guessedExt === 'png' ? 'image/png' : 'image/jpeg'),
+          };
+        });
+        setSelectedPhotos((prev) => [...prev, ...newItems].slice(0, 10));
       }
     } catch {
       Alert.alert('Permission Error', 'Unable to access photos. Please check device permissions.');
@@ -118,6 +130,7 @@ export default function CreateListingScreen() {
         setSelectedReelVideoUri(asset.uri);
         setSelectedReelFileName(asset.fileName || asset.uri.split('/').pop() || 'reel_video.mp4');
         setSelectedReelMimeType(asset.mimeType || 'video/mp4');
+        setSelectedReelFileSize(asset.fileSize);
         setReelDuration(asset.duration ? Math.round(asset.duration) : null);
       }
     } catch {
@@ -126,13 +139,14 @@ export default function CreateListingScreen() {
   };
 
   const handleRemovePhoto = (index: number) => {
-    setSelectedPhotoUris((prev) => prev.filter((_, i) => i !== index));
+    setSelectedPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleRemoveReel = () => {
     setSelectedReelVideoUri(null);
     setSelectedReelFileName(null);
     setSelectedReelMimeType(null);
+    setSelectedReelFileSize(undefined);
     setReelDuration(null);
   };
 
@@ -174,18 +188,29 @@ export default function CreateListingScreen() {
       createdListingId = listing.id;
 
       // ── Step 2: Upload all chosen photos if any ───────────────
-      if (selectedPhotoUris.length > 0) {
-        setUploadStatusText(`Uploading ${selectedPhotoUris.length} photos...`);
+      if (selectedPhotos.length > 0) {
+        setUploadStatusText(`Preparing and uploading ${selectedPhotos.length} photos...`);
         try {
-          await mediaService.uploadMultipleListingImages(createdListingId, selectedPhotoUris);
-        } catch (imgErr) {
-          console.warn('Image upload error:', imgErr);
+          await mediaService.uploadMultipleListingImages(createdListingId, selectedPhotos, {
+            concurrencyLimit: 3,
+            onProgress: (p) => {
+              setUploadStatusText(
+                `Uploading photos: ${p.overallPercent}% (${p.completedCount}/${p.totalCount} completed)...`
+              );
+            },
+          });
+        } catch (imgErr: any) {
+          console.error('Image upload error:', imgErr);
+          Alert.alert(
+            'Upload Notice',
+            `Some photos could not be uploaded to Cloudinary: ${imgErr?.message || 'Network error'}. Listing was created.`
+          );
         }
       }
 
       // ── Step 3: Upload Reel linked to this listing if selected ──────
       if (selectedReelVideoUri) {
-        setUploadStatusText('Uploading product video reel...');
+        setUploadStatusText('Uploading product video reel to Cloudinary: 0%...');
         try {
           const reel = await createReelMutation.mutateAsync({
             title: title.trim(),
@@ -196,22 +221,31 @@ export default function CreateListingScreen() {
           await mediaService.uploadReelMedia(reel.id, selectedReelVideoUri, {
             fileName: selectedReelFileName || undefined,
             mimeType: selectedReelMimeType || undefined,
+            fileSizeBytes: selectedReelFileSize,
+            onProgress: (percent) => {
+              setUploadStatusText(`Uploading video reel to Cloudinary: ${percent}%...`);
+            },
           });
-        } catch (reelErr) {
-          console.warn('Reel upload notice:', reelErr);
+        } catch (reelErr: any) {
+          console.error('Reel upload notice:', reelErr);
+          Alert.alert(
+            'Video Upload Notice',
+            `Video reel could not be uploaded to Cloudinary: ${reelErr?.message || 'Network error'}. Listing was created.`
+          );
         }
       }
 
       // Refresh query caches
-      queryClient.invalidateQueries({ queryKey: LISTING_QUERY_KEYS.all });
-      queryClient.invalidateQueries({ queryKey: ['reels'] });
+      await queryClient.invalidateQueries({ queryKey: LISTING_QUERY_KEYS.all });
+      await queryClient.invalidateQueries({ queryKey: LISTING_QUERY_KEYS.detail(createdListingId) });
+      await queryClient.invalidateQueries({ queryKey: ['reels'] });
 
       // ── Step 3: Redirect to newly created listing ───────────
       setUploadStatusText('Product created! Redirecting...');
       Alert.alert(
         'Success! 🎉',
         selectedReelVideoUri
-          ? 'Your product listing and video reel are now live on Mandi!'
+          ? 'Your product listing and video reel are now live on Bazarr 360!'
           : 'Your product listing has been published!',
         [
           {
@@ -251,7 +285,10 @@ export default function CreateListingScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionBlockHeader}>
             <View style={styles.titleWithBadge}>
-              <Text style={styles.sectionBlockTitle}>📹 Product Video Reel</Text>
+              <View style={styles.titleIconRow}>
+                <Video size={18} color="#002f34" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionBlockTitle}>Product Video Reel</Text>
+              </View>
               <Badge label="4X INQUIRIES" variant="brand" />
             </View>
             <Text style={styles.sectionBlockSubtitle}>
@@ -262,7 +299,9 @@ export default function CreateListingScreen() {
           {selectedReelVideoUri ? (
             <View style={styles.reelSelectedCard}>
               <View style={styles.reelVideoPreview}>
-                <Text style={styles.reelIconBig}>🎬</Text>
+                <View style={[styles.reelIconBig, { alignItems: 'center', justifyContent: 'center' }]}>
+                  <Clapperboard size={26} color="#002f34" />
+                </View>
                 <View style={styles.reelVideoDetails}>
                   <Text style={styles.reelVideoTitle}>Product Video Reel Attached</Text>
                   <Text style={styles.reelVideoDuration}>
@@ -286,7 +325,7 @@ export default function CreateListingScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.reelPickerInner}>
-                <Text style={styles.reelPickerIcon}>🎥</Text>
+                <Video size={30} color="#002f34" style={{ marginBottom: 6 }} />
                 <Text style={styles.reelPickerLabel}>Upload Video Reel</Text>
                 <Text style={styles.reelPickerSublabel}>
                   Record or choose a showcase clip (up to 60s)
@@ -300,20 +339,23 @@ export default function CreateListingScreen() {
         <View style={styles.sectionBlock}>
           <View style={styles.sectionBlockHeader}>
             <View style={styles.titleWithBadge}>
-              <Text style={styles.sectionBlockTitle}>📸 Product Photos</Text>
-              <Badge label={`${selectedPhotoUris.length}/10 Photos`} variant={selectedPhotoUris.length > 0 ? 'success' : 'default'} />
+              <View style={styles.titleIconRow}>
+                <Camera size={18} color="#002f34" style={{ marginRight: 6 }} />
+                <Text style={styles.sectionBlockTitle}>Product Photos</Text>
+              </View>
+              <Badge label={`${selectedPhotos.length}/10 Photos`} variant={selectedPhotos.length > 0 ? 'success' : 'default'} />
             </View>
             <Text style={styles.sectionBlockSubtitle}>
               Add up to 10 photos. Listings with multiple photos get 3x more buyer inquiries.
             </Text>
           </View>
 
-          {selectedPhotoUris.length > 0 ? (
+          {selectedPhotos.length > 0 ? (
             <View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photosScrollList}>
-                {selectedPhotoUris.map((uri, index) => (
-                  <View key={uri + index} style={styles.multiPhotoCard}>
-                    <Image source={{ uri }} style={styles.multiPhotoThumb} resizeMode="cover" />
+                {selectedPhotos.map((photo, index) => (
+                  <View key={photo.uri + index} style={styles.multiPhotoCard}>
+                    <Image source={{ uri: photo.uri }} style={styles.multiPhotoThumb} resizeMode="cover" />
                     {index === 0 && (
                       <View style={styles.coverBadge}>
                         <Text style={styles.coverBadgeText}>COVER</Text>
@@ -324,18 +366,18 @@ export default function CreateListingScreen() {
                       onPress={() => handleRemovePhoto(index)}
                       activeOpacity={0.8}
                     >
-                      <Text style={styles.photoRemoveText}>✕</Text>
+                      <X size={14} color="#ffffff" />
                     </TouchableOpacity>
                   </View>
                 ))}
 
-                {selectedPhotoUris.length < 10 && (
+                {selectedPhotos.length < 10 && (
                   <TouchableOpacity
                     style={styles.addMorePhotoBox}
                     onPress={handlePickPhoto}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.addMorePhotoIcon}>+</Text>
+                    <Plus size={22} color={palette.slate500} />
                     <Text style={styles.addMorePhotoLabel}>Add More</Text>
                   </TouchableOpacity>
                 )}
@@ -347,7 +389,7 @@ export default function CreateListingScreen() {
               onPress={handlePickPhoto}
               activeOpacity={0.8}
             >
-              <Text style={styles.photoPickerIcon}>📷</Text>
+              <ImagePlus size={34} color="#002f34" style={{ marginBottom: 6 }} />
               <Text style={styles.photoPickerLabel}>Add Product Photos (up to 10)</Text>
               <Text style={styles.photoPickerSublabel}>Tap to select multiple photos from gallery</Text>
             </TouchableOpacity>
@@ -356,7 +398,10 @@ export default function CreateListingScreen() {
 
         {/* ── Section: Product Details ── */}
         <View style={styles.sectionBlock}>
-          <Text style={styles.sectionBlockTitle}>📝 Product Details</Text>
+          <View style={[styles.titleIconRow, { marginBottom: spacing.sm }]}>
+            <FileText size={18} color="#002f34" style={{ marginRight: 6 }} />
+            <Text style={styles.sectionBlockTitle}>Product Details</Text>
+          </View>
 
           <AppInput
             label="Product Title *"
@@ -483,6 +528,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 4,
+  },
+  titleIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   sectionBlockTitle: {
     fontSize: 16,

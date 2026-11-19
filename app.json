@@ -1,23 +1,22 @@
 {
   "expo": {
-    "name": "Mandi Live",
+    "name": "Bazarr 360",
     "slug": "mandi-live",
     "description": "A video-first marketplace for classifieds, reels, profiles, chat, and location discovery in India.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "bazaar360",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bazaar360.app"
     },
     "android": {
-      "package": "com.mandilive.app",
+      "package": "com.bazaar360.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -30,13 +29,19 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 150
         }
       ],
       "expo-image",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Bazarr 360 to use your location to automatically detect your state and district."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,7 +1,11 @@
 export interface ReelItem {
   id: string;
   videoUrl: string;
+  hlsUrl?: string;
   thumbnailUrl: string;
+  customThumbnailUrl?: string;
+  status?: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED' | 'PUBLISHED' | 'DRAFT' | 'ARCHIVED' | string;
+  processingError?: string;
   title: string;
   description?: string;
   price?: number;
